@@ -1,8 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount, useWriteContract } from 'wagmi';
+import { parseEther, encodePacked, keccak256 } from 'viem';
 
 export default function Home() {
+  const { isConnected, address: userAddress } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+
   // State to hold active escrows for the dashboard
   const [escrows, setEscrows] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
@@ -11,24 +17,56 @@ export default function Home() {
   const totalTVL = escrows.reduce((acc, curr) => curr.status === 'LOCKED' ? acc + parseFloat(curr.amount) : acc, 0);
   const settledCount = escrows.filter(e => e.status === 'RELEASED').length;
 
+  // UPDATED: Real Blockchain Launch Logic
   const handleLaunch = async () => {
+    if (!isConnected) {
+      setToast("Please connect your wallet first!");
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
     console.log("Initializing PayAG Escrow...");
     try {
-      const res = await fetch('/api/escrow', {
-        method: 'POST',
-        body: JSON.stringify({
-          agentId: 'Demo_Agent_01',
-          amount: (Math.random() * 100).toFixed(2),
-          targetAgent: 'Service_Agent_Z'
-        }),
-        headers: { 'Content-Type': 'application/json' }
+      // 1. Data for the transaction
+      const targetAgent = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"; // Example Seller
+      const taskDescription = "Agent Task " + Math.floor(Math.random() * 1000);
+      const amountInEth = "0.01";
+
+      // 2. Create the Cryptographic Task Hash
+      const taskHash = keccak256(encodePacked(['string'], [taskDescription]));
+
+      // 3. Trigger the Smart Contract (Replace with your Factory Address)
+      const tx = await writeContractAsync({
+        address: '0x434507cb212F0922426852141988cba0A0501D7c', // <--- PASTE YOUR FACTORY ADDRESS HERE
+        abi: [
+          {
+            "inputs": [{"internalType": "address payable","name": "_seller","type": "address"},{"internalType": "bytes32","name": "_taskHash","type": "bytes32"}],
+            "name": "createVault",
+            "outputs": [{"internalType": "address","name": "","type": "address"}],
+            "stateMutability": "payable",
+            "type": "function"
+          }
+        ],
+        functionName: 'createVault',
+        args: [targetAgent, taskHash],
+        value: parseEther(amountInEth),
       });
 
-      const data = await res.json();
-      setEscrows((prev) => [data, ...prev]);
-      alert(`Protocol Launched! Escrow ID: ${data.escrowId}`);
+      // 4. Update the UI table
+      const newEscrow = {
+        escrowId: tx.slice(0, 10) + "...",
+        status: 'LOCKED',
+        amount: amountInEth,
+        timestamp: Date.now(),
+        agentId: 'User_Agent',
+        targetAgent: 'Service_Agent_Z'
+      };
+
+      setEscrows((prev) => [newEscrow, ...prev]);
+      setToast(`Protocol Launched! TX: ${newEscrow.escrowId}`);
+      setTimeout(() => setToast(null), 3000);
     } catch (error) {
-      console.error("API Error:", error);
+      console.error("Blockchain Error:", error);
     }
   };
 
@@ -41,7 +79,7 @@ export default function Home() {
   };
 
   const downloadReceipt = (escrow: any) => {
-    const text = `PayAG Protocol Receipt\nID: ${escrow.escrowId}\nStatus: ${escrow.status}\nAmount: $${escrow.amount}\nTimestamp: ${new Date(escrow.timestamp).toLocaleString()}`;
+    const text = `PayAG Protocol Receipt\nID: ${escrow.escrowId}\nStatus: ${escrow.status}\nAmount: ${escrow.amount} ETH\nTimestamp: ${new Date(escrow.timestamp).toLocaleString()}`;
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -58,10 +96,14 @@ export default function Home() {
           <div className="text-2xl font-bold tracking-tighter">
             PayAG<span className="text-indigo-500">.ai</span>
           </div>
-          <div className="space-x-8 text-sm font-medium text-gray-400">
-            <a href="#protocol" className="hover:text-white transition-colors">Protocol</a>
-            <a href="#agents" className="hover:text-white transition-colors">Agents</a>
-            <a href="#dashboard" className="hover:text-white transition-colors">Dashboard</a>
+          <div className="flex items-center space-x-8">
+            <div className="hidden md:flex space-x-8 text-sm font-medium text-gray-400">
+              <a href="#protocol" className="hover:text-white transition-colors">Protocol</a>
+              <a href="#agents" className="hover:text-white transition-colors">Agents</a>
+              <a href="#dashboard" className="hover:text-white transition-colors">Dashboard</a>
+            </div>
+            {/* ADDED CONNECT BUTTON HERE */}
+            <ConnectButton chainStatus="none" showBalance={false} />
           </div>
         </div>
       </nav>
@@ -83,7 +125,7 @@ export default function Home() {
               onClick={handleLaunch}
               className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/20"
             >
-              Launch Protocol
+              {isConnected ? "Launch Protocol" : "Connect Wallet"}
             </button>
             <button 
               onClick={() => document.getElementById('protocol')?.scrollIntoView({ behavior: 'smooth' })}
@@ -106,7 +148,7 @@ export default function Home() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-left">
           <div className="bg-[#0d0d14] border border-gray-800 p-4 rounded-xl">
             <div className="text-gray-500 text-xs uppercase font-mono mb-1">Total Value Locked</div>
-            <div className="text-xl font-bold text-indigo-400">${totalTVL.toFixed(2)}</div>
+            <div className="text-xl font-bold text-indigo-400">{totalTVL.toFixed(3)} ETH</div>
           </div>
           <div className="bg-[#0d0d14] border border-gray-800 p-4 rounded-xl">
             <div className="text-gray-500 text-xs uppercase font-mono mb-1">Settled (Simulated)</div>
@@ -270,7 +312,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Documentation Section - MOVED OUTSIDE OF FOOTER */}
+      {/* Documentation Section */}
       <section id="protocol" className="px-6 py-24 border-t border-gray-900 bg-[#0a0a0f]">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl font-bold mb-12 text-left">Developer Documentation</h2>
@@ -295,7 +337,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-16 bg-[#0d0d14] p-8 rounded-2xl border border-gray-800 font-mono text-xs">
+          <div className="mt-16 bg-[#0d0d14] p-8 rounded-2xl border border-gray-800 font-mono text-xs text-left">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-3 h-3 rounded-full bg-red-500/20" />
               <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
@@ -316,7 +358,7 @@ export default function Home() {
         </div>
       </section>
 
-{/* Footer */}
+      {/* Footer */}
       <footer className="px-6 py-12 border-t border-gray-900 bg-[#0a0a0f] text-left">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-gray-500 text-sm">
