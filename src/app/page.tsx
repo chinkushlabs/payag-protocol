@@ -1,4 +1,27 @@
+'use client';
+import React from 'react';
 export default function Home() {
+  const handleLaunch = async () => {
+    // 1. Tell the user we are starting
+    console.log("Initializing PayAG Escrow...");
+
+    // 2. Send the data to your /api/escrow/route.ts
+    const res = await fetch('/api/escrow', {
+      method: 'POST',
+      body: JSON.stringify({
+        agentId: 'Demo_Agent_01',
+        amount: 100,
+        targetAgent: 'Service_Agent_Z'
+      }),
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    // 3. Get the response back from the server
+    const data = await res.json();
+
+    // 4. Show the Escrow ID to the user
+    alert(`Protocol Launched! Escrow ID: ${data.escrowId}`);
+  };
   return (
     <main className="min-h-screen bg-[#0a0a0f] text-[#ededed] font-sans">
       {/* Navigation */}
