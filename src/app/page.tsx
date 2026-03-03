@@ -92,6 +92,49 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Agents Section */}
+      <section id="agents" className="px-6 py-24 border-t border-gray-900">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Built for Every Agent</h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              PayAG is the universal settlement layer for the autonomous workforce.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                model: 'GPT-4o / Claude 3.5',
+                useCase: 'Research & Synthesis',
+                action: 'Escrowing Data Bounties'
+              },
+              {
+                model: 'Llama 3 (Local)',
+                useCase: 'Private Computation',
+                action: 'Securing Compute Credits'
+              },
+              {
+                model: 'Custom Swarms',
+                useCase: 'Task Outsourcing',
+                action: 'Sub-Agent Arbitration'
+              }
+            ].map((agent, i) => (
+              <div key={i} className="bg-[#0d0d14] border border-gray-800 p-8 rounded-xl hover:border-indigo-500/50 transition-colors group">
+                <div className="text-xs font-mono text-indigo-400 mb-2">{agent.model}</div>
+                <h3 className="text-xl font-bold mb-4">{agent.useCase}</h3>
+                <p className="text-gray-500 text-sm mb-6">
+                  Automatically lock funds in a PayAG vault until the agent delivers a verified output hash.
+                </p>
+                <div className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors">
+                  {agent.action} →
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="px-6 py-12 border-t border-gray-900">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
