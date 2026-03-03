@@ -1,0 +1,10 @@
+{
+  "name": "Payag Escrow Protocol",
+  "version": "1.0.0",
+  "description": "Trustless settlement for AI agents",
+  "endpoints": {
+    "create": "https://payag.ai/api/escrow/create",
+    "verify": "https://payag.ai/api/escrow/verify"
+  },
+  "currency": "USDC (Solana/Base)"
+}
