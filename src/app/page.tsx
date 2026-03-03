@@ -96,11 +96,15 @@ export default function Home() {
 
       // 3. Trigger the Smart Contract
       // FIXED: Removed the second duplicate 'const tx' call and the syntax error placeholder
+      // 3. Trigger the Smart Contract
       const hash = await writeContractAsync({
         address: '0x434507cb212F0922426852141988cba0A0501D7c', 
         abi: [
           {
-            "inputs": [{"internalType": "address payable","name": "_seller","type": "address"},{"internalType": "bytes32","name": "_taskHash","type": "bytes32"}],
+            "inputs": [
+              {"internalType": "address payable","name": "_seller","type": "address"},
+              {"internalType": "bytes32","name": "_taskHash","type": "bytes32"}
+            ],
             "name": "createVault",
             "outputs": [{"internalType": "address","name": "","type": "address"}],
             "stateMutability": "payable",
@@ -239,7 +243,7 @@ export default function Home() {
                         rel="noopener noreferrer"
                         className="hover:underline"
                       >
-                        {escrow.fullHash ? `${escrow.fullHash.slice(0, 6)}...${escrow.fullHash.slice(-4)}` : 'Link'}
+                        {escrow.fullHash ? `${escrow.fullHash.slice(0, 6)}...${escrow.fullHash.slice(-4)}` : 'Scanning...'}
                       </a>
                     </td>
                     <td className="px-6 py-4">
