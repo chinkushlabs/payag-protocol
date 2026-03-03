@@ -1,29 +1,37 @@
 'use client';
-import React from 'react';
+
+import React, { useState } from 'react';
+
 export default function Home() {
+  // State to hold active escrows for the dashboard
+  const [escrows, setEscrows] = useState<any[]>([]);
+
   const handleLaunch = async () => {
-    // 1. Tell the user we are starting
     console.log("Initializing PayAG Escrow...");
+    try {
+      const res = await fetch('/api/escrow', {
+        method: 'POST',
+        body: JSON.stringify({
+          agentId: 'Demo_Agent_01',
+          amount: (Math.random() * 100).toFixed(2), // Random amount for demo
+          targetAgent: 'Service_Agent_Z'
+        }),
+        headers: { 'Content-Type': 'application/json' }
+      });
 
-    // 2. Send the data to your /api/escrow/route.ts
-    const res = await fetch('/api/escrow', {
-      method: 'POST',
-      body: JSON.stringify({
-        agentId: 'Demo_Agent_01',
-        amount: 100,
-        targetAgent: 'Service_Agent_Z'
-      }),
-      headers: { 'Content-Type': 'application/json' }
-    });
+      const data = await res.json();
 
-    // 3. Get the response back from the server
-    const data = await res.json();
+      // Update dashboard state with the new escrow
+      setEscrows((prev) => [data, ...prev]);
 
-    // 4. Show the Escrow ID to the user
-    alert(`Protocol Launched! Escrow ID: ${data.escrowId}`);
+      alert(`Protocol Launched! Escrow ID: ${data.escrowId}`);
+    } catch (error) {
+      console.error("API Error:", error);
+    }
   };
+
   return (
-    <main className="min-h-screen bg-[#0a0a0f] text-[#ededed] font-sans">
+    <main className="min-h-screen bg-[#0a0a0f] text-[#ededed] font-sans text-left">
       {/* Navigation */}
       <nav className="border-b border-gray-800 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -33,7 +41,7 @@ export default function Home() {
           <div className="space-x-8 text-sm font-medium text-gray-400">
             <a href="#protocol" className="hover:text-white transition-colors">Protocol</a>
             <a href="#agents" className="hover:text-white transition-colors">Agents</a>
-            <a href="#docs" className="hover:text-white transition-colors">Docs</a>
+            <a href="#dashboard" className="hover:text-white transition-colors">Dashboard</a>
           </div>
         </div>
       </nav>
@@ -51,7 +59,11 @@ export default function Home() {
             PayAG is the specialized escrow layer enabling autonomous agents to secure funds, verify performance, and settle transactions with zero counterparty risk.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105">
+            {/* CONNECTED BUTTON */}
+            <button 
+              onClick={handleLaunch}
+              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105"
+            >
               Launch Protocol
             </button>
             <button className="px-8 py-4 bg-transparent border border-gray-700 hover:border-gray-500 text-white rounded-lg font-bold transition-all">
@@ -61,11 +73,52 @@ export default function Home() {
         </div>
       </section>
 
+      {/* NEW: Dashboard Section */}
+      <section id="dashboard" className="px-6 py-12 max-w-6xl mx-auto border-t border-gray-900">
+        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          Live Escrow Dashboard
+        </h2>
+
+        <div className="bg-[#0d0d14] border border-gray-800 rounded-xl overflow-hidden">
+          {escrows.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 italic">
+              No active escrows. Click "Launch Protocol" to begin.
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-900/50 text-gray-400 uppercase text-xs font-mono">
+                <tr>
+                  <th className="px-6 py-4">ID</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Timestamp</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {escrows.map((escrow) => (
+                  <tr key={escrow.escrowId} className="hover:bg-gray-900/30 transition-colors">
+                    <td className="px-6 py-4 font-mono text-indigo-400">{escrow.escrowId}</td>
+                    <td className="px-6 py-4">
+                      <span className="bg-green-500/10 text-green-400 px-2 py-1 rounded text-xs font-bold uppercase">
+                        {escrow.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-500 font-mono">
+                      {new Date(escrow.timestamp).toLocaleTimeString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
       {/* Protocol Explanation */}
       <section id="protocol" className="px-6 py-24 bg-[#0d0d14]">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-            <div>
+            <div className="text-left">
               <h2 className="text-4xl font-bold mb-6">The PayAG Trust Layer</h2>
               <p className="text-gray-400 text-lg mb-8 leading-relaxed">
                 In the agentic economy, speed is nothing without security. PayAG provides the escrow primitives that allow agents to outsource tasks and purchase data without needing human oversight.
@@ -89,7 +142,7 @@ export default function Home() {
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
               <div className="relative bg-gray-900 border border-gray-800 p-8 rounded-2xl">
-                <div className="space-y-6">
+                <div className="space-y-6 text-left">
                   <div className="flex justify-between items-center text-sm font-mono text-indigo-400">
                     <span>TRUST_ESCROW_ID_0x71...</span>
                     <span>LOCKED</span>
@@ -105,7 +158,7 @@ export default function Home() {
                       <div className="text-sm font-semibold">Service_Agent_Z</div>
                     </div>
                   </div>
-                  <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-green-400">
+                  <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-green-400 whitespace-pre">
                     {`// PayAG Logic\nIF verification_hash == confirmed\nTHEN release_escrow(funds)\nELSE return_to_sender()`}
                   </div>
                 </div>
@@ -143,10 +196,10 @@ export default function Home() {
                 action: 'Sub-Agent Arbitration'
               }
             ].map((agent, i) => (
-              <div key={i} className="bg-[#0d0d14] border border-gray-800 p-8 rounded-xl hover:border-indigo-500/50 transition-colors group">
+              <div key={i} className="bg-[#0d0d14] border border-gray-800 p-8 rounded-xl hover:border-indigo-500/50 transition-colors group text-left">
                 <div className="text-xs font-mono text-indigo-400 mb-2">{agent.model}</div>
                 <h3 className="text-xl font-bold mb-4">{agent.useCase}</h3>
-                <p className="text-gray-500 text-sm mb-6">
+                <p className="text-gray-500 text-sm mb-6 leading-relaxed">
                   Automatically lock funds in a PayAG vault until the agent delivers a verified output hash.
                 </p>
                 <div className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors">
@@ -160,7 +213,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="px-6 py-12 border-t border-gray-900">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-left">
           <div className="text-gray-500 text-sm">
             © 2026 PayAG Labs. All rights reserved.
           </div>
