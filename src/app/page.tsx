@@ -35,9 +35,10 @@ export default function Home() {
       // 2. Create the Cryptographic Task Hash
       const taskHash = keccak256(encodePacked(['string'], [taskDescription]));
 
-      // 3. Trigger the Smart Contract (Replace with your Factory Address)
-      const tx = await writeContractAsync({
-        address: '0x434507cb212F0922426852141988cba0A0501D7c', // <--- PASTE YOUR FACTORY ADDRESS HERE
+      // 3. Trigger the Smart Contract
+      // FIXED: Removed the second duplicate 'const tx' call and the syntax error placeholder
+      const hash = await writeContractAsync({
+        address: '0x434507cb212F0922426852141988cba0A0501D7c', 
         abi: [
           {
             "inputs": [{"internalType": "address payable","name": "_seller","type": "address"},{"internalType": "bytes32","name": "_taskHash","type": "bytes32"}],
@@ -52,11 +53,9 @@ export default function Home() {
         value: parseEther(amountInEth),
       });
 
-      const tx = await writeContractAsync({ ... });
-
       const newEscrow = {
-        escrowId: tx.slice(0, 10) + "...", // Keep this for the display name if you like
-        fullHash: tx,                     // Add this line to store the 64-character hash
+        escrowId: hash.slice(0, 10) + "...", 
+        fullHash: hash,                   
         status: 'LOCKED',
         amount: amountInEth,
         timestamp: Date.now(),
@@ -181,7 +180,7 @@ export default function Home() {
                         rel="noopener noreferrer"
                         className="hover:underline"
                       >
-                        {escrow.fullHash.slice(0, 6)}...{escrow.fullHash.slice(-4)}
+                        {escrow.fullHash ? `${escrow.fullHash.slice(0, 6)}...${escrow.fullHash.slice(-4)}` : 'Link'}
                       </a>
                     </td>
                     <td className="px-6 py-4">
