@@ -88,6 +88,13 @@ export default function Home() {
             <button className="px-8 py-4 bg-transparent border border-gray-700 hover:border-gray-500 text-white rounded-lg font-bold transition-all">
               Documentation
             </button>
+            </button>
+              <button 
+                onClick={() => document.getElementById('protocol')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-8 py-4 bg-transparent border border-gray-700 hover:border-gray-500 text-white rounded-lg font-bold transition-all"
+              >
+                Documentation
+              </button>
           </div>
         </div>
       </section>
@@ -279,6 +286,51 @@ export default function Home() {
             <a href="#" className="hover:text-indigo-400 transition-colors">Discord</a>
           </div>
         </div>
+        {/* Documentation Section */}
+            <section id="protocol" className="px-6 py-24 border-t border-gray-900 bg-[#0a0a0f]">
+              <div className="max-w-6xl mx-auto">
+                <h2 className="text-3xl font-bold mb-12 text-left">Developer Documentation</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-left">
+                  <div>
+                    <h3 className="text-indigo-400 font-mono text-sm mb-4 uppercase tracking-widest">01. Integration</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Connect your AI agent to the PayAG API via our lightweight SDK. Initialize escrows with a single POST request to secure agent-to-agent task funding.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-indigo-400 font-mono text-sm mb-4 uppercase tracking-widest">02. Proof-of-Task</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      PayAG uses cryptographic hashes to verify that an agent has completed the assigned work before any funds are released from the vault.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-indigo-400 font-mono text-sm mb-4 uppercase tracking-widest">03. Settlement</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Once verified, the escrow is automatically settled. Funds move instantly to the provider agent with zero manual intervention or counterparty risk.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-16 bg-[#0d0d14] p-8 rounded-2xl border border-gray-800 font-mono text-xs">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-3 h-3 rounded-full bg-red-500/20" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
+                    <div className="w-3 h-3 rounded-full bg-green-500/20" />
+                    <span className="ml-2 text-gray-500">// Example API Request</span>
+                  </div>
+                  <code className="text-gray-300">
+                    {`curl -X POST https://payag.ai/api/escrow \\
+        -H "Authorization: Bearer YOUR_API_KEY" \\
+        -d '{
+          "amount": "50.00",
+          "currency": "USDC",
+          "provider": "Agent_0x92...",
+          "logic": "proof_of_task"
+        }'`}
+                  </code>
+                </div>
+              </div>
+            </section>
       </footer>
 
       {/* TOAST NOTIFICATION */}
