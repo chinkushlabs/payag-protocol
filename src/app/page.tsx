@@ -13,7 +13,7 @@ export default function Home() {
         method: 'POST',
         body: JSON.stringify({
           agentId: 'Demo_Agent_01',
-          amount: (Math.random() * 100).toFixed(2), // Random amount for demo
+          amount: (Math.random() * 100).toFixed(2),
           targetAgent: 'Service_Agent_Z'
         }),
         headers: { 'Content-Type': 'application/json' }
@@ -30,11 +30,38 @@ export default function Home() {
     }
   };
 
+  // NEW: Function to simulate the "Proof-of-Task" verification and release
+  const handleVerify = (id: string) => {
+    setEscrows(prev => prev.map(escrow => 
+      escrow.escrowId === id ? { ...escrow, status: 'RELEASED' } : escrow
+    ));
+  };
+  const totalTVL = escrows.reduce((acc, curr) => curr.status === 'LOCKED' ? acc + parseFloat(curr.amount) : acc, 0);
+  const settledCount = escrows.filter(e => e.status === 'RELEASED').length;
+  const [toast, setToast] = useState<string | null>(null);
+
+  const handleVerify = (id: string) => {
+    setEscrows(prev => prev.map(escrow => 
+      escrow.escrowId === id ? { ...escrow, status: 'RELEASED' } : escrow
+    ));
+    // Trigger the toast
+    setToast(`Transaction ${id} settled successfully.`);
+    setTimeout(() => setToast(null), 3000); // Hide after 3 seconds
+  };
+  const downloadReceipt = (escrow: any) => {
+    const text = `PayAG Protocol Receipt\nID: ${escrow.escrowId}\nStatus: ${escrow.status}\nAmount: $${escrow.amount}\nTimestamp: ${new Date(escrow.timestamp).toLocaleString()}`;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PayAG-Receipt-${escrow.escrowId}.txt`;
+    a.click();
+  };
   return (
     <main className="min-h-screen bg-[#0a0a0f] text-[#ededed] font-sans text-left">
       {/* Navigation */}
-      <nav className="border-b border-gray-800 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+      <nav className="border-b border-gray-800 px-6 py-4 text-left">
+        <div className="max-w-7xl mx-auto flex justify-between items-center text-left">
           <div className="text-2xl font-bold tracking-tighter">
             PayAG<span className="text-indigo-500">.ai</span>
           </div>
@@ -59,10 +86,9 @@ export default function Home() {
             PayAG is the specialized escrow layer enabling autonomous agents to secure funds, verify performance, and settle transactions with zero counterparty risk.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {/* CONNECTED BUTTON */}
             <button 
               onClick={handleLaunch}
-              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105"
+              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/20"
             >
               Launch Protocol
             </button>
@@ -73,14 +99,25 @@ export default function Home() {
         </div>
       </section>
 
-      {/* NEW: Dashboard Section */}
+      {/* Dashboard Section */}
       <section id="dashboard" className="px-6 py-12 max-w-6xl mx-auto border-t border-gray-900">
         <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           Live Escrow Dashboard
         </h2>
-
-        <div className="bg-[#0d0d14] border border-gray-800 rounded-xl overflow-hidden">
+        {/* STATS BAR START */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-[#0d0d14] border border-gray-800 p-4 rounded-xl">
+            <div className="text-gray-500 text-xs uppercase font-mono mb-1">Total Value Locked</div>
+            <div className="text-xl font-bold text-indigo-400">${totalTVL.toFixed(2)}</div>
+          </div>
+          <div className="bg-[#0d0d14] border border-gray-800 p-4 rounded-xl">
+            <div className="text-gray-500 text-xs uppercase font-mono mb-1">Settled (Simulated)</div>
+            <div className="text-xl font-bold text-green-400">{settledCount}</div>
+          </div>
+        </div>
+        {/* STATS BAR END */}
+        <div className="bg-[#0d0d14] border border-gray-800 rounded-xl overflow-hidden shadow-2xl">
           {escrows.length === 0 ? (
             <div className="p-12 text-center text-gray-500 italic">
               No active escrows. Click "Launch Protocol" to begin.
@@ -91,6 +128,7 @@ export default function Home() {
                 <tr>
                   <th className="px-6 py-4">ID</th>
                   <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Verification</th>
                   <th className="px-6 py-4">Timestamp</th>
                 </tr>
               </thead>
@@ -99,9 +137,31 @@ export default function Home() {
                   <tr key={escrow.escrowId} className="hover:bg-gray-900/30 transition-colors">
                     <td className="px-6 py-4 font-mono text-indigo-400">{escrow.escrowId}</td>
                     <td className="px-6 py-4">
-                      <span className="bg-green-500/10 text-green-400 px-2 py-1 rounded text-xs font-bold uppercase">
+                      <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${
+                        escrow.status === 'RELEASED' 
+                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+                        : 'bg-green-500/10 text-green-400 border border-green-500/20'
+                      }`}>
                         {escrow.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {escrow.status === 'LOCKED' ? (
+                        <button 
+                          onClick={() => handleVerify(escrow.escrowId)}
+                          className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1 rounded transition-all border border-indigo-500/30"
+                        >
+                          Verify Delivery
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-gray-600 italic font-mono uppercase">Task Verified</span>
+                    <button 
+                      onClick={() => downloadReceipt(escrow)}
+                      className="ml-2 text-[10px] text-indigo-400 hover:text-white underline"
+                    >
+                      Download TX Receipt
+                    </button>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-gray-500 font-mono">
                       {new Date(escrow.timestamp).toLocaleTimeString()}
@@ -116,7 +176,7 @@ export default function Home() {
 
       {/* Protocol Explanation */}
       <section id="protocol" className="px-6 py-24 bg-[#0d0d14]">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto text-left">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
             <div className="text-left">
               <h2 className="text-4xl font-bold mb-6">The PayAG Trust Layer</h2>
@@ -139,9 +199,9 @@ export default function Home() {
                 ))}
               </ul>
             </div>
-            <div className="relative group">
+            <div className="relative group text-left">
               <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-              <div className="relative bg-gray-900 border border-gray-800 p-8 rounded-2xl">
+              <div className="relative bg-gray-900 border border-gray-800 p-8 rounded-2xl text-left">
                 <div className="space-y-6 text-left">
                   <div className="flex justify-between items-center text-sm font-mono text-indigo-400">
                     <span>TRUST_ESCROW_ID_0x71...</span>
@@ -170,7 +230,7 @@ export default function Home() {
 
       {/* Agents Section */}
       <section id="agents" className="px-6 py-24 border-t border-gray-900">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto text-left">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Built for Every Agent</h2>
             <p className="text-gray-400 max-w-2xl mx-auto">
@@ -212,7 +272,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="px-6 py-12 border-t border-gray-900">
+      <footer className="px-6 py-12 border-t border-gray-900 bg-[#0a0a0f]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-left">
           <div className="text-gray-500 text-sm">
             © 2026 PayAG Labs. All rights reserved.
@@ -224,6 +284,12 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      {/* TOAST NOTIFICATION */}
+      {toast && (
+        <div className="fixed bottom-8 right-8 bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-2xl animate-bounce border border-indigo-400 z-50 font-bold">
+          {toast}
+        </div>
+      )}
     </main>
   );
 }
