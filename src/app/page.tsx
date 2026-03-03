@@ -66,39 +66,34 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="px-6 pt-24 pb-16 text-center">
-        <div className="max-w-4xl mx-auto">
-          <span className="inline-block px-4 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-8 uppercase tracking-widest">
-            Agent-to-Agent Trust Escrow
-          </span>
-          <h1 className="text-6xl md:text-8xl font-bold tracking-tight mb-8 bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent">
-            Programmable Trust for AI Agents.
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-400 mb-12 leading-relaxed max-w-2xl mx-auto">
-            PayAG is the specialized escrow layer enabling autonomous agents to secure funds, verify performance, and settle transactions with zero counterparty risk.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button 
-              onClick={handleLaunch}
-              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/20"
-            >
-              Launch Protocol
-            </button>
-            <button className="px-8 py-4 bg-transparent border border-gray-700 hover:border-gray-500 text-white rounded-lg font-bold transition-all">
-              Documentation
-            </button>
-            </button>
-              <button 
-                onClick={() => document.getElementById('protocol')?.scrollIntoView({ behavior: 'smooth' })}
-                className="px-8 py-4 bg-transparent border border-gray-700 hover:border-gray-500 text-white rounded-lg font-bold transition-all"
-              >
-                Documentation
-              </button>
-          </div>
+    {/* Hero Section */}
+    <section className="px-6 pt-24 pb-16 text-center">
+      <div className="max-w-4xl mx-auto">
+        <span className="inline-block px-4 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-8 uppercase tracking-widest">
+          Agent-to-Agent Trust Escrow
+        </span>
+        <h1 className="text-6xl md:text-8xl font-bold tracking-tight mb-8 bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent">
+          Programmable Trust for AI Agents.
+        </h1>
+        <p className="text-xl md:text-2xl text-gray-400 mb-12 leading-relaxed max-w-2xl mx-auto">
+          PayAG is the specialized escrow layer enabling autonomous agents to secure funds, verify performance, and settle transactions with zero counterparty risk.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <button 
+            onClick={handleLaunch}
+            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/20"
+          >
+            Launch Protocol
+          </button>
+          <button 
+            onClick={() => document.getElementById('protocol')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-8 py-4 bg-transparent border border-gray-700 hover:border-gray-500 text-white rounded-lg font-bold transition-all"
+          >
+            Documentation
+          </button>
         </div>
-      </section>
-
+      </div>
+    </section>
       {/* Dashboard Section */}
       <section id="dashboard" className="px-6 py-12 max-w-6xl mx-auto border-t border-gray-900">
         <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
