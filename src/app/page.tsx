@@ -2,13 +2,41 @@
 
 import React, { useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount, useWriteContract, useReadContract } from 'wagmi';
 import { parseEther, encodePacked, keccak256 } from 'viem';
 
 export default function Home() {
   const { isConnected, address: userAddress } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  
+  // NEW: Read all vaults from the Factory
+  const { data: allVaults } = useReadContract({
+    address: '0x434507cb212F0922426852141988cba0A0501D7c',
+    abi: [
+      {
+        "inputs": [],
+        "name": "getVaults",
+        "outputs": [{"internalType": "address[]","name": "","type": "address[]"}],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ],
+    functionName: 'getVaults',
+  });
 
+  // NEW: Sync the blockchain data to your UI state
+  React.useEffect(() => {
+    if (allVaults) {
+      const formatted = (allVaults as string[]).map((vaultAddress, index) => ({
+        escrowId: vaultAddress.slice(0, 10) + "...",
+        fullHash: vaultAddress, 
+        status: 'LOCKED', 
+        amount: "0.01",
+        timestamp: Date.now() - (index * 60000), 
+      }));
+      setEscrows(formatted);
+    }
+  }, [allVaults]);
   // State to hold active escrows for the dashboard
   const [escrows, setEscrows] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
