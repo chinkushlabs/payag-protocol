@@ -1,4 +1,7 @@
-export const metadata = {
+import './globals.css'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
   title: 'PayAG | Agent-to-Agent Trust Escrow',
   description: 'The secure escrow layer for autonomous AI agent transactions and trusted coordination.',
   openGraph: {
@@ -24,3 +27,15 @@ export const metadata = {
     images: ['https://payag.ai/og-image.png'],
   },
 };
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  )
+}
