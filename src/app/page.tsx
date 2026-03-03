@@ -52,14 +52,14 @@ export default function Home() {
         value: parseEther(amountInEth),
       });
 
-      // 4. Update the UI table
+      const tx = await writeContractAsync({ ... });
+
       const newEscrow = {
-        escrowId: tx.slice(0, 10) + "...",
+        escrowId: tx.slice(0, 10) + "...", // Keep this for the display name if you like
+        fullHash: tx,                     // Add this line to store the 64-character hash
         status: 'LOCKED',
         amount: amountInEth,
         timestamp: Date.now(),
-        agentId: 'User_Agent',
-        targetAgent: 'Service_Agent_Z'
       };
 
       setEscrows((prev) => [newEscrow, ...prev]);
@@ -174,7 +174,16 @@ export default function Home() {
               <tbody className="divide-y divide-gray-800">
                 {escrows.map((escrow) => (
                   <tr key={escrow.escrowId} className="hover:bg-gray-900/30 transition-colors">
-                    <td className="px-6 py-4 font-mono text-indigo-400">{escrow.escrowId}</td>
+                    <td className="px-6 py-4 font-mono text-indigo-400">
+                      <a 
+                        href={`https://sepolia.basescan.org/tx/${escrow.fullHash}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {escrow.fullHash.slice(0, 6)}...{escrow.fullHash.slice(-4)}
+                      </a>
+                    </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${
                         escrow.status === 'RELEASED' 
