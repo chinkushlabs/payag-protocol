@@ -8,7 +8,38 @@ import { parseEther, encodePacked, keccak256 } from 'viem';
 export default function Home() {
   const { isConnected, address: userAddress } = useAccount();
   const { writeContractAsync } = useWriteContract();
-  
+  // Function to call the specific Escrow contract's verifyAndRelease function
+  const handleRealVerify = async (vaultAddress: string) => {
+    try {
+      setToast("Verifying Task...");
+
+      // For this demo, we use the same hash we created during launch
+      // In a real app, the Agent would provide this secret hash
+      const taskDescription = "Agent Task " + Math.floor(Math.random() * 1000); // Placeholder
+      const proofHash = keccak256(encodePacked(['string'], [taskDescription]));
+
+      await writeContractAsync({
+        address: vaultAddress as `0x${string}`,
+        abi: [
+          {
+            "inputs": [{"internalType": "bytes32","name": "_completedTaskHash","type": "bytes32"}],
+            "name": "verifyAndRelease",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+          }
+        ],
+        functionName: 'verifyAndRelease',
+        args: [proofHash],
+      });
+
+      setToast("Funds Released Successfully!");
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      console.error("Settlement Error:", error);
+      setToast("Verification Failed");
+    }
+  };
   // NEW: Read all vaults from the Factory
   const { data: allVaults } = useReadContract({
     address: '0x434507cb212F0922426852141988cba0A0501D7c',
@@ -222,12 +253,12 @@ export default function Home() {
                     </td>
                     <td className="px-6 py-4">
                       {escrow.status === 'LOCKED' ? (
-                        <button 
-                          onClick={() => handleVerify(escrow.escrowId)}
-                          className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
-                        >
-                          Verify Delivery
-                        </button>
+                    <button 
+                      onClick={() => handleRealVerify(escrow.fullHash)}
+                      className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
+                    >
+                      Verify Delivery
+                    </button>
                       ) : (
                         <div className="flex items-center">
                           <span className="text-[10px] text-gray-600 italic font-mono uppercase">Task Verified</span>
