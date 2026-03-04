@@ -359,17 +359,11 @@ export default function Home() {
                           ) : (
                             <span
                               title="Only buyer can verify"
-                              className="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-500 border border-gray-700 px-3 py-1.5 rounded cursor-not-allowed"
+                              className="text-[10px] uppercase font-bold text-gray-500 border border-gray-700 px-3 py-1.5 rounded cursor-not-allowed inline-block"
                             >
                               Waiting
-                              <span
-                                title="Only buyer can verify"
-                                className="inline-flex items-center text-[10px] uppercase font-bold text-gray-500 border border-gray-700 px-3 py-1.5 rounded cursor-not-allowed"
-                              >
-                                Waiting
-                              </span>
-
                             </span>
+
                           )
                         ) : (
                           <div className="flex items-center">
