@@ -33,7 +33,7 @@
             useEffect(() => {
               if (allVaults) {
                 const formatted = (allVaults as any[]).map((vault, index) => ({
-                  escrowId: vault.vaultAddress ? `${vault.vaultAddress.slice(0, 6)}...${vault.vaultAddress.slice(-4)}` : '...',
+                  escrowId: vault.vaultAddress ? `${vault.vaultAddress.slice(0, 6)}...${vault.vaultAddress.slice(-4)}` : `ID-${index}`,
                   fullHash: vault.vaultAddress,
                   buyer: vault.buyer, 
                   status: vault.isReleased ? 'RELEASED' : 'LOCKED',
@@ -225,6 +225,7 @@
                   <tbody className="divide-y divide-gray-800">
                     {escrows.map((escrow) => (
                       <tr key={escrow.fullHash} className="hover:bg-gray-900/30 transition-colors">
+                        {/* Column 1: ID - Now showing the actual address */}
                         <td className="px-6 py-4 font-mono text-indigo-400">
                           <a 
                             href={`https://sepolia.basescan.org/address/${escrow.fullHash}`} 
@@ -232,9 +233,22 @@
                             rel="noopener noreferrer"
                             className="hover:underline"
                           >
-                            {escrow.fullHash ? `${escrow.fullHash.slice(0, 6)}...${escrow.fullHash.slice(-4)}` : 'Scanning...'}
+                            {escrow.escrowId}
                           </a>
                         </td>
+
+                        {/* Column 2: Status */}
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${
+                            escrow.status === 'RELEASED' 
+                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+                            : 'bg-green-500/10 text-green-400 border border-green-500/20'
+                          }`}>
+                            {escrow.status}
+                          </span>
+                        </td>
+
+                        {/* Column 3: Verification - Button only for the Buyer */}
                         <td className="px-6 py-4">
                           {escrow.status === 'LOCKED' && userAddress?.toLowerCase() === escrow.buyer?.toLowerCase() && (
                             <button 
@@ -256,6 +270,8 @@
                             </div>
                           )}
                         </td>
+
+                        {/* Column 4: Timestamp */}
                         <td className="px-6 py-4 text-gray-500 font-mono">
                           {new Date(escrow.timestamp).toLocaleTimeString()}
                         </td>
