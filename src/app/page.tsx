@@ -32,14 +32,17 @@
             // Sync blockchain data to UI
             useEffect(() => {
               if (allVaults) {
-                const formatted = (allVaults as any[]).map((vault, index) => ({
-                  escrowId: vault.vaultAddress.slice(0, 10) + "...",
-                  fullHash: vault.vaultAddress,
-                  buyer: vault.buyer, // Captures the buyer address from the contract
-                  status: vault.isReleased ? 'RELEASED' : 'LOCKED',
-                  amount: "0.01",
-                  timestamp: Date.now() - (index * 60000),
-                }));
+                const formatted = (allVaults as any[])?.map((vault, index) => {
+                  if (!vault) return null; // Skip if vault data is missing
+                  return {
+                    escrowId: vault.vaultAddress ? `${vault.vaultAddress.slice(0, 10)}...` : `ID-${index}`,
+                    fullHash: vault.vaultAddress || '',
+                    buyer: vault.buyer || '', 
+                    status: vault.isReleased ? 'RELEASED' : 'LOCKED',
+                    amount: "0.01",
+                    timestamp: Date.now() - (index * 60000),
+                  };
+                }).filter(Boolean); // Remove any null entries
                 setEscrows(formatted);
               }
             }, [allVaults]);
@@ -246,7 +249,7 @@
                         </td>
                         <td className="px-6 py-4">
                           {escrow.status === 'LOCKED' ? (
-                            userAddress?.toLowerCase() === escrow.buyer?.toLowerCase() ? (
+                            isConnected && userAddress?.toLowerCase() === escrow.buyer?.toLowerCase() ? (
                               <button 
                                 onClick={() => handleRealVerify(escrow.fullHash)}
                                 className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
@@ -254,7 +257,9 @@
                                 Verify Delivery
                               </button>
                             ) : (
-                              <span className="text-[10px] text-gray-400 italic uppercase">Waiting for Buyer</span>
+                              <span className="text-[10px] text-gray-400 italic uppercase">
+                                {isConnected ? "Waiting for Buyer" : "Connect Wallet"}
+                              </span>
                             )
                           ) : (
                             <div className="flex items-center">
