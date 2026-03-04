@@ -32,12 +32,13 @@
             // Sync blockchain data to UI
             useEffect(() => {
               if (allVaults) {
-                const formatted = (allVaults as string[]).map((vaultAddress, index) => ({
-                  escrowId: vaultAddress.slice(0, 10) + "...",
-                  fullHash: vaultAddress, 
-                  status: 'LOCKED', 
+                const formatted = (allVaults as any[]).map((vault, index) => ({
+                  escrowId: vault.vaultAddress.slice(0, 10) + "...",
+                  fullHash: vault.vaultAddress,
+                  buyer: vault.buyer, // Captures the buyer address from the contract
+                  status: vault.isReleased ? 'RELEASED' : 'LOCKED',
                   amount: "0.01",
-                  timestamp: Date.now() - (index * 60000), 
+                  timestamp: Date.now() - (index * 60000),
                 }));
                 setEscrows(formatted);
               }
@@ -245,12 +246,16 @@
                         </td>
                         <td className="px-6 py-4">
                           {escrow.status === 'LOCKED' ? (
-                        <button 
-                          onClick={() => handleRealVerify(escrow.fullHash)}
-                          className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
-                        >
-                          Verify Delivery
-                        </button>
+                            userAddress?.toLowerCase() === escrow.buyer?.toLowerCase() ? (
+                              <button 
+                                onClick={() => handleRealVerify(escrow.fullHash)}
+                                className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
+                              >
+                                Verify Delivery
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-gray-400 italic uppercase">Waiting for Buyer</span>
+                            )
                           ) : (
                             <div className="flex items-center">
                               <span className="text-[10px] text-gray-600 italic font-mono uppercase">Task Verified</span>
