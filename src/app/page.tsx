@@ -35,9 +35,9 @@ export default function Home() {
       const formatted = (allVaults as any[]).map((vault, index) => ({
         escrowId: vault.vaultAddress
           ? `${vault.vaultAddress.slice(0, 6)}...${vault.vaultAddress.slice(-4)}`
-          : `ID-${index}`,
+          : `VAULT-${index + 1}`,
         fullHash: vault.vaultAddress,
-        buyer: vault.buyer, // THIS IS KEY: It stores who the buyer is
+        buyer: vault.buyer,
         status: vault.isReleased ? "RELEASED" : "LOCKED",
         amount: "0.01",
         timestamp: Date.now() - index * 60000,
@@ -279,19 +279,18 @@ export default function Home() {
                     key={escrow.fullHash}
                     className="hover:bg-gray-900/30 transition-colors"
                   >
-                    {/* ID COLUMN - ALWAYS VISIBLE */}
+                    {/* ID COLUMN - RESTORED TO SHOW ADDRESS */}
                     <td className="px-6 py-4 font-mono text-indigo-400">
                       {escrow.escrowId}
                     </td>
 
-                    {/* STATUS COLUMN */}
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 rounded text-[10px] font-black uppercase bg-green-500/10 text-green-400 border border-green-500/20">
                         {escrow.status}
                       </span>
                     </td>
 
-                    {/* VERIFICATION COLUMN - HIDDEN UNLESS YOU ARE THE BUYER */}
+                    {/* VERIFICATION COLUMN - BUTTON HIDDEN FOR NON-BUYERS */}
                     <td className="px-6 py-4">
                       {escrow.status === "LOCKED" &&
                       userAddress?.toLowerCase() ===
@@ -304,14 +303,11 @@ export default function Home() {
                         </button>
                       ) : (
                         <span className="text-[10px] text-gray-600 italic uppercase">
-                          {escrow.status === "RELEASED"
-                            ? "Task Verified"
-                            : "Locked"}
+                          {escrow.status === "RELEASED" ? "Verified" : "Locked"}
                         </span>
                       )}
                     </td>
 
-                    {/* TIMESTAMP COLUMN */}
                     <td className="px-6 py-4 text-gray-500 font-mono">
                       {new Date(escrow.timestamp).toLocaleTimeString()}
                     </td>
