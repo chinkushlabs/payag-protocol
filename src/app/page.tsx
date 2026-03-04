@@ -236,27 +236,15 @@
                           </a>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${
-                            escrow.status === 'RELEASED' 
-                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
-                            : 'bg-green-500/10 text-green-400 border border-green-500/20'
-                          }`}>
-                            {escrow.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {escrow.status === 'LOCKED' ? (
-                            userAddress?.toLowerCase() === escrow.buyer?.toLowerCase() ? (
-                              <button 
-                                onClick={() => handleRealVerify(escrow.fullHash)}
-                                className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
-                              >
-                                Verify Delivery
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-gray-500 italic uppercase">Waiting for Buyer</span>
-                            )
-                          ) : (
+                          {escrow.status === 'LOCKED' && userAddress?.toLowerCase() === escrow.buyer?.toLowerCase() && (
+                            <button 
+                              onClick={() => handleRealVerify(escrow.fullHash)}
+                              className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
+                            >
+                              Verify Delivery
+                            </button>
+                          )}
+                          {escrow.status === 'RELEASED' && (
                             <div className="flex items-center">
                               <span className="text-[10px] text-gray-600 italic font-mono uppercase">Task Verified</span>
                               <button 
