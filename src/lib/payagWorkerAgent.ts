@@ -26,6 +26,7 @@ export async function submitProofToChain({
 
   const hash = await walletClient.writeContract({
     account: walletClient.account,
+    chain: walletClient.chain ?? null,
     address: vaultAddress,
     abi: VAULT_PROOF_ABI,
     functionName: 'verifyAndRelease',
