@@ -171,21 +171,12 @@ export default function Home() {
   };
 
   const handleRealVerify = async (vaultAddress: `0x${string}`) => {
-    const targetEscrow = escrows.find(
-      (e) => e.fullHash.toLowerCase() === vaultAddress.toLowerCase()
-    );
-
-    const isAuthorizedBuyer =
-      !!userAddress &&
-      !!targetEscrow?.agentA &&
-      userAddress.toLowerCase() === targetEscrow.agentA.toLowerCase();
-
-
-    if (!isAuthorizedBuyer) {
-      setToast('Only buyer can verify');
+    if (!userAddress) {
+      setToast('Connect wallet');
       setTimeout(() => setToast(null), 3000);
       return;
     }
+
 
       try {
         const proofString = taskInput.trim();
@@ -328,10 +319,8 @@ export default function Home() {
               </thead>
               <tbody className="divide-y divide-gray-800">
                 {escrows.map((escrow) => {
-                  const isAuthorizedBuyer =
-                    !!userAddress &&
-                    !!escrow.agentA &&
-                    userAddress.toLowerCase() === escrow.agentA.toLowerCase();
+              const isAuthorizedBuyer = !!userAddress;
+
 
                   return (
                     <tr key={escrow.fullHash} className="hover:bg-gray-900/30 transition-colors">
