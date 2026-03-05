@@ -8,7 +8,8 @@ import {
   useReadContract,
   usePublicClient,
 } from 'wagmi';
-import { parseEther, encodePacked, keccak256 } from 'viem';
+import { parseEther } from 'viem';
+import { generateProofHash } from '@/lib/payagProof';
 
 type EscrowItem = {
   escrowId: string;
@@ -57,7 +58,7 @@ const VAULT_ABI = [
     type: 'function',
   },
   {
-    inputs: [{ internalType: 'bytes32', name: '_completedTaskHash', type: 'bytes32' }],
+    inputs: [{ internalType: 'string', name: 'proofString', type: 'string' }],
     name: 'verifyAndRelease',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -152,7 +153,7 @@ export default function Home() {
       setLastTaskDesc(taskDescription);
 
       const amountInEth = '0.01';
-      const taskHash = keccak256(encodePacked(['string'], [taskDescription]));
+      const taskHash = generateProofHash(taskDescription);
 
       await writeContractAsync({
         address: FACTORY_ADDRESS,
@@ -192,13 +193,12 @@ export default function Home() {
 
     try {
       setToast('Verifying Task...');
-      const proofHash = keccak256(encodePacked(['string'], [lastTaskDesc]));
 
       await writeContractAsync({
         address: vaultAddress,
         abi: VAULT_ABI,
         functionName: 'verifyAndRelease',
-        args: [proofHash],
+        args: [lastTaskDesc],
       });
 
       setToast('Funds Released Successfully!');
@@ -572,3 +572,6 @@ export default function Home() {
     </main>
   );
 }
+
+
+
