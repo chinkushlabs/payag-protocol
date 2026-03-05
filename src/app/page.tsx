@@ -14,7 +14,7 @@ import { generateProofHash } from '@/lib/payagProof';
 type EscrowItem = {
   escrowId: string;
   fullHash: `0x${string}`;
-  buyer: `0x${string}` | null;
+  agentA: `0x${string}` | null;
   status: 'LOCKED' | 'RELEASED';
   amount: string;
   timestamp: number;
@@ -43,28 +43,11 @@ const FACTORY_ABI = [
 ] as const;
 
 const VAULT_ABI = [
-  {
-    inputs: [],
-    name: 'buyer',
-    outputs: [{ internalType: 'address', name: '', type: 'address' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'isReleased',
-    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ internalType: 'string', name: 'proofString', type: 'string' }],
-    name: 'verifyAndRelease',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-] as const;
+    { inputs: [], name: 'agentA', outputs: [{ internalType: 'address', name: '', type: 'address' }], stateMutability: 'view', type: 'function' },
+    { inputs: [], name: 'isSettled', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], stateMutability: 'view', type: 'function' },
+    { inputs: [{ internalType: 'string', name: 'proofString', type: 'string' }], name: 'verifyAndRelease', outputs: [], stateMutability: 'nonpayable', type: 'function' },
+  ] as const;
+
 
 export default function Home() {
   const { isConnected, address: userAddress } = useAccount();
@@ -72,6 +55,8 @@ export default function Home() {
   const publicClient = usePublicClient();
 
   const [lastTaskDesc, setLastTaskDesc] = useState<string>('Agent Task 123');
+  const [taskInput, setTaskInput] = useState<string>('MY_FIXED_PROOF_001');
+
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -89,35 +74,36 @@ export default function Home() {
 
       const formatted = await Promise.all(
         (allVaults as `0x${string}`[]).map(async (vaultAddress, index) => {
-          let buyer: `0x${string}` | null = null;
-          let isReleased = false;
+          let agentA: `0x${string}` | null = null;
+          let isSettled = false;
+
 
           try {
             const [buyerResult, releasedResult] = await Promise.all([
               publicClient.readContract({
                 address: vaultAddress,
                 abi: VAULT_ABI,
-                functionName: 'buyer',
+                functionName: 'agentA',
               }) as Promise<`0x${string}`>,
               publicClient.readContract({
                 address: vaultAddress,
                 abi: VAULT_ABI,
-                functionName: 'isReleased',
+                functionName: 'isSettled',
               }) as Promise<boolean>,
             ]);
 
-            buyer = buyerResult;
-            isReleased = releasedResult;
+            agentA = buyerResult;
+            isSettled = releasedResult;
           } catch {
-            buyer = null;
-            isReleased = false;
+            agentA = null;
+            isSettled = false;
           }
 
           return {
             escrowId: `${vaultAddress.slice(0, 6)}...${vaultAddress.slice(-4)}`,
             fullHash: vaultAddress,
-            buyer,
-            status: isReleased ? 'RELEASED' : 'LOCKED',
+            agentA,
+            status: isSettled ? 'RELEASED' : 'LOCKED',
             amount: '0.01',
             timestamp: Date.now() - index * 60000,
           } as EscrowItem;
@@ -149,7 +135,13 @@ export default function Home() {
 
     try {
       const targetAgent = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
-      const taskDescription = 'MY_FIXED_PROOF_001';
+      const taskDescription = taskInput.trim();
+      if (!taskDescription) {
+        setToast('Enter proof string');
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+
 
       setLastTaskDesc(taskDescription);
 
@@ -183,8 +175,9 @@ export default function Home() {
 
     const isAuthorizedBuyer =
       !!userAddress &&
-      !!targetEscrow?.buyer &&
-      userAddress.toLowerCase() === targetEscrow.buyer.toLowerCase();
+      !!targetEscrow?.agentA &&
+      userAddress.toLowerCase() === targetEscrow.agentA.toLowerCase();
+
 
     if (!isAuthorizedBuyer) {
       setToast('Only buyer can verify');
@@ -266,10 +259,17 @@ export default function Home() {
             verify performance, and settle transactions with zero counterparty risk.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <input
+              value={taskInput}
+              onChange={(e) => setTaskInput(e.target.value)}
+              placeholder="Enter proof string"
+              className="px-4 py-4 rounded-lg bg-black/30 border border-gray-700 text-white min-w-[260px]"
+            />
             <button
               onClick={handleLaunch}
               className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/20"
             >
+
               {isConnected ? 'Launch Protocol' : 'Connect Wallet'}
             </button>
             <button
@@ -320,8 +320,8 @@ export default function Home() {
                 {escrows.map((escrow) => {
                   const isAuthorizedBuyer =
                     !!userAddress &&
-                    !!escrow.buyer &&
-                    userAddress.toLowerCase() === escrow.buyer.toLowerCase();
+                    !!escrow.agentA &&
+                    userAddress.toLowerCase() === escrow.agentA.toLowerCase();
 
                   return (
                     <tr key={escrow.fullHash} className="hover:bg-gray-900/30 transition-colors">
