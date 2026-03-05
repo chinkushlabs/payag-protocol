@@ -20,7 +20,7 @@ type EscrowItem = {
   timestamp: number;
 };
 
-const FACTORY_ADDRESS = '0xEDcE7B1D88931b847D0079f4e03e82c4CB6ECC6d' as const;
+const FACTORY_ADDRESS = '0x4c3825FA6DDfd2eaCE6fa9191de3fb3c204bAc3c' as const;
 
 const FACTORY_ABI = [
   {
