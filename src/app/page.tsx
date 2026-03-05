@@ -16,11 +16,13 @@ type EscrowItem = {
   fullHash: `0x${string}`;
   agentA: `0x${string}` | null;
   status: 'LOCKED' | 'RELEASED';
+
   amount: string;
   timestamp: number;
 };
 
 const FACTORY_ADDRESS = '0x4c3825FA6DDfd2eaCE6fa9191de3fb3c204bAc3c' as const;
+
 
 const FACTORY_ABI = [
   {
@@ -185,15 +187,23 @@ export default function Home() {
       return;
     }
 
-    try {
-      setToast('Verifying Task...');
+      try {
+        const proofString = taskInput.trim();
+        if (!proofString) {
+          setToast('Enter proof string');
+          setTimeout(() => setToast(null), 3000);
+          return;
+        }
 
-      await writeContractAsync({
-        address: vaultAddress,
-        abi: VAULT_ABI,
-        functionName: 'verifyAndRelease',
-        args: [lastTaskDesc],
-      });
+        setToast('Verifying Task...');
+
+        await writeContractAsync({
+          address: vaultAddress,
+          abi: VAULT_ABI,
+          functionName: 'verifyAndRelease',
+          args: [proofString],
+        });
+
 
       setToast('Funds Released Successfully!');
       setEscrows((prev) =>
