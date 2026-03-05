@@ -149,7 +149,8 @@ export default function Home() {
 
     try {
       const targetAgent = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
-      const taskDescription = 'Agent Task ' + Math.floor(Math.random() * 1000);
+      const taskDescription = 'MY_FIXED_PROOF_001';
+
       setLastTaskDesc(taskDescription);
 
       const amountInEth = '0.01';
