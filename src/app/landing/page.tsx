@@ -72,14 +72,14 @@ async function getProtocolStatus(): Promise<ProtocolStatus> {
 
     const releasedVaults = states.filter((s) => s.released).length;
     const lockedVaults = states.length - releasedVaults;
-    const tvlWei = states.reduce((sum, s) => sum + s.balance, 0n);
+    const tvlEth = states.reduce((sum, s) => sum + Number(formatEther(s.balance)), 0);
 
     return {
       factoryAddress: FACTORY_ADDRESS,
       totalVaults: states.length,
       lockedVaults,
       releasedVaults,
-      tvlEth: Number(formatEther(tvlWei)).toFixed(4),
+      tvlEth: tvlEth.toFixed(4),
     };
   } catch {
     return fallback;
@@ -211,4 +211,6 @@ const taskHash = generateProofHash(proof);`}
     </main>
   );
 }
+
+
 
