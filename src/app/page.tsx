@@ -203,8 +203,8 @@ export default function Home() {
 
 
     try {
-      const proofString =
-        proofByVault[vaultAddress.toLowerCase()] ?? taskInput.trim();
+      const proofString = taskInput.trim();
+
 
       if (!proofString) {
         setToast('Enter proof string');
