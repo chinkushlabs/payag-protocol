@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isHex } from 'viem';
 import { baseSepolia } from 'viem/chains';
-
 import {
   createWorkerPublicClient,
   createWorkerWalletClient,
@@ -13,10 +12,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const vaultAddress = body?.vaultAddress as `0x${string}` | undefined;
     const proofString = body?.proofString as string | undefined;
+    const milestoneIndex = Number(body?.milestoneIndex ?? 0);
 
-    if (!vaultAddress || !proofString) {
+    if (!vaultAddress || !proofString || Number.isNaN(milestoneIndex) || milestoneIndex < 0) {
       return NextResponse.json(
-        { error: 'vaultAddress and proofString are required' },
+        { error: 'vaultAddress, proofString and valid milestoneIndex are required' },
         { status: 400 }
       );
     }
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     const txHash = await submitProofToChain({
       walletClient,
       vaultAddress,
+      milestoneIndex,
       proofString,
     });
 
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       status: receipt.status,
       txHash,
       blockNumber: receipt.blockNumber.toString(),
+      milestoneIndex,
     });
   } catch (error) {
     return NextResponse.json(

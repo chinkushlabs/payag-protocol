@@ -10,13 +10,29 @@ import {
 import { baseSepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
-
 const VAULT_PROOF_ABI = [
   {
-    inputs: [{ internalType: 'string', name: 'proofString', type: 'string' }],
+    inputs: [
+      { internalType: 'uint256', name: 'milestoneIndex', type: 'uint256' },
+      { internalType: 'string', name: 'proofString', type: 'string' },
+    ],
     name: 'verifyAndRelease',
     outputs: [],
     stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'milestonesCount',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'completedMilestones',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
     type: 'function',
   },
 ] as const;
@@ -34,12 +50,14 @@ const FACTORY_ABI = [
 export type SubmitProofParams = {
   walletClient: WalletClient;
   vaultAddress: `0x${string}`;
+  milestoneIndex: number;
   proofString: string;
 };
 
 export async function submitProofToChain({
   walletClient,
   vaultAddress,
+  milestoneIndex,
   proofString,
 }: SubmitProofParams): Promise<`0x${string}`> {
   if (!proofString.trim()) throw new Error('proofString cannot be empty');
@@ -51,7 +69,7 @@ export async function submitProofToChain({
     address: vaultAddress,
     abi: VAULT_PROOF_ABI,
     functionName: 'verifyAndRelease',
-    args: [proofString],
+    args: [BigInt(milestoneIndex), proofString],
   });
 
   return hash;
@@ -59,7 +77,11 @@ export async function submitProofToChain({
 
 export type WorkerTaskListenerOptions = {
   onTaskComplete: (
-    handler: (proofString: string, vaultAddress: `0x${string}`) => Promise<void>
+    handler: (
+      proofString: string,
+      vaultAddress: `0x${string}`,
+      milestoneIndex: number
+    ) => Promise<void>
   ) => () => void;
   walletClient: WalletClient;
   onSubmitted?: (txHash: `0x${string}`, vaultAddress: `0x${string}`) => void;
@@ -72,9 +94,14 @@ export function createWorkerTaskListener({
   onSubmitted,
   onError,
 }: WorkerTaskListenerOptions): () => void {
-  const unsubscribe = onTaskComplete(async (proofString, vaultAddress) => {
+  const unsubscribe = onTaskComplete(async (proofString, vaultAddress, milestoneIndex) => {
     try {
-      const txHash = await submitProofToChain({ walletClient, vaultAddress, proofString });
+      const txHash = await submitProofToChain({
+        walletClient,
+        vaultAddress,
+        milestoneIndex,
+        proofString,
+      });
       onSubmitted?.(txHash, vaultAddress);
     } catch (error) {
       onError?.(error, vaultAddress);
@@ -132,4 +159,30 @@ export async function getLatestVaultAddress({
   }
 
   return vaults[vaults.length - 1];
+}
+
+export async function getVaultMilestoneProgress({
+  publicClient,
+  vaultAddress,
+}: {
+  publicClient: PublicClient;
+  vaultAddress: `0x${string}`;
+}): Promise<{ completed: number; total: number }> {
+  const [completedRaw, totalRaw] = (await Promise.all([
+    publicClient.readContract({
+      address: vaultAddress,
+      abi: VAULT_PROOF_ABI,
+      functionName: 'completedMilestones',
+    }),
+    publicClient.readContract({
+      address: vaultAddress,
+      abi: VAULT_PROOF_ABI,
+      functionName: 'milestonesCount',
+    }),
+  ])) as [bigint, bigint];
+
+  return {
+    completed: Number(completedRaw),
+    total: Number(totalRaw),
+  };
 }
