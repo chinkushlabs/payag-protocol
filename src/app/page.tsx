@@ -214,12 +214,20 @@ export default function Home() {
 
       setToast('Verifying Task...');
 
-      await writeContractAsync({
+      const txHash = await writeContractAsync({
         address: vaultAddress,
         abi: VAULT_ABI,
         functionName: 'verifyAndRelease',
         args: [proofString],
       });
+
+      if (!publicClient) throw new Error('Public client unavailable');
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+      if (receipt.status !== 'success') {
+        throw new Error('Verification transaction reverted');
+      }
+
 
 
 
