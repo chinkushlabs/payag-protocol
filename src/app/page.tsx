@@ -58,8 +58,9 @@ export default function Home() {
 
   const [lastTaskDesc, setLastTaskDesc] = useState<string>('Agent Task 123');
   const [taskInput, setTaskInput] = useState<string>('MY_FIXED_PROOF_001');
-
+  const [proofByVault, setProofByVault] = useState<Record<string, string>>({});
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
+
   const [toast, setToast] = useState<string | null>(null);
 
   const { data: allVaults, refetch } = useReadContract({
@@ -150,7 +151,7 @@ export default function Home() {
       const amountInEth = '0.01';
       const taskHash = generateProofHash(taskDescription);
 
-      await writeContractAsync({
+      const txHash = await writeContractAsync({
         address: FACTORY_ADDRESS,
         abi: FACTORY_ABI,
         functionName: 'createVault',
@@ -158,11 +159,34 @@ export default function Home() {
         value: parseEther(amountInEth),
       });
 
+      if (!publicClient) {
+        setToast('Public client unavailable');
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+      const latestVaults = (await publicClient.readContract({
+        address: FACTORY_ADDRESS,
+        abi: FACTORY_ABI,
+        functionName: 'getVaults',
+      })) as `0x${string}`[];
+
+      const newestVault = latestVaults[latestVaults.length - 1];
+      if (newestVault) {
+        setProofByVault((prev) => ({
+          ...prev,
+          [newestVault.toLowerCase()]: taskDescription,
+        }));
+      }
+
       setToast('Protocol Launched!');
       setTimeout(() => {
         setToast(null);
         refetch();
       }, 3000);
+
     } catch (error) {
       console.error('Blockchain Error:', error);
       setToast('Launch failed');
@@ -178,22 +202,25 @@ export default function Home() {
     }
 
 
-      try {
-        const proofString = taskInput.trim();
-        if (!proofString) {
-          setToast('Enter proof string');
-          setTimeout(() => setToast(null), 3000);
-          return;
-        }
+    try {
+      const proofString =
+        proofByVault[vaultAddress.toLowerCase()] ?? taskInput.trim();
 
-        setToast('Verifying Task...');
+      if (!proofString) {
+        setToast('Enter proof string');
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
 
-        await writeContractAsync({
-          address: vaultAddress,
-          abi: VAULT_ABI,
-          functionName: 'verifyAndRelease',
-          args: [proofString],
-        });
+      setToast('Verifying Task...');
+
+      await writeContractAsync({
+        address: vaultAddress,
+        abi: VAULT_ABI,
+        functionName: 'verifyAndRelease',
+        args: [proofString],
+      });
+
 
 
       setToast('Funds Released Successfully!');
