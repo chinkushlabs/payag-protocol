@@ -10,19 +10,20 @@ import {
 } from 'wagmi';
 import { parseEther } from 'viem';
 import { generateProofHash } from '@/lib/payagProof';
+import { getLatestVaultAddress } from '@/lib/payagWorkerAgent';
 
 type EscrowItem = {
   escrowId: string;
   fullHash: `0x${string}`;
-  agentA: `0x${string}` | null;
+  buyer: `0x${string}` | null;
   status: 'LOCKED' | 'RELEASED';
-
   amount: string;
   timestamp: number;
 };
 
-const FACTORY_ADDRESS = '0x4c3825FA6DDfd2eaCE6fa9191de3fb3c204bAc3c' as const;
-
+const FACTORY_ADDRESS =
+  (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}` | undefined) ??
+  '0x4c3825FA6DDfd2eaCE6fa9191de3fb3c204bAc3c';
 
 const FACTORY_ABI = [
   {
@@ -45,23 +46,31 @@ const FACTORY_ABI = [
 ] as const;
 
 const VAULT_ABI = [
-    { inputs: [], name: 'agentA', outputs: [{ internalType: 'address', name: '', type: 'address' }], stateMutability: 'view', type: 'function' },
-    { inputs: [], name: 'isSettled', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], stateMutability: 'view', type: 'function' },
-    { inputs: [{ internalType: 'string', name: 'proofString', type: 'string' }], name: 'verifyAndRelease', outputs: [], stateMutability: 'nonpayable', type: 'function' },
-  ] as const;
-
+  {
+    inputs: [],
+    name: 'buyer',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'isReleased',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
 
 export default function Home() {
-  const { isConnected, address: userAddress } = useAccount();
+  const { isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
 
-  const [lastTaskDesc, setLastTaskDesc] = useState<string>('Agent Task 123');
-  const [taskInput, setTaskInput] = useState<string>('MY_FIXED_PROOF_001');
-  const [proofByVault, setProofByVault] = useState<Record<string, string>>({});
+  const [taskInput, setTaskInput] = useState<string>('final-proof-1');
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
-
   const [toast, setToast] = useState<string | null>(null);
+  const [autoVerifyInFlight, setAutoVerifyInFlight] = useState<Record<string, boolean>>({});
 
   const { data: allVaults, refetch } = useReadContract({
     address: FACTORY_ADDRESS,
@@ -77,36 +86,35 @@ export default function Home() {
 
       const formatted = await Promise.all(
         (allVaults as `0x${string}`[]).map(async (vaultAddress, index) => {
-          let agentA: `0x${string}` | null = null;
-          let isSettled = false;
-
+          let buyer: `0x${string}` | null = null;
+          let isReleased = false;
 
           try {
             const [buyerResult, releasedResult] = await Promise.all([
               publicClient.readContract({
                 address: vaultAddress,
                 abi: VAULT_ABI,
-                functionName: 'agentA',
+                functionName: 'buyer',
               }) as Promise<`0x${string}`>,
               publicClient.readContract({
                 address: vaultAddress,
                 abi: VAULT_ABI,
-                functionName: 'isSettled',
+                functionName: 'isReleased',
               }) as Promise<boolean>,
             ]);
 
-            agentA = buyerResult;
-            isSettled = releasedResult;
+            buyer = buyerResult;
+            isReleased = releasedResult;
           } catch {
-            agentA = null;
-            isSettled = false;
+            buyer = null;
+            isReleased = false;
           }
 
           return {
             escrowId: `${vaultAddress.slice(0, 6)}...${vaultAddress.slice(-4)}`,
             fullHash: vaultAddress,
-            agentA,
-            status: isSettled ? 'RELEASED' : 'LOCKED',
+            buyer,
+            status: isReleased ? 'RELEASED' : 'LOCKED',
             amount: '0.01',
             timestamp: Date.now() - index * 60000,
           } as EscrowItem;
@@ -129,6 +137,42 @@ export default function Home() {
   );
   const settledCount = escrows.filter((e) => e.status === 'RELEASED').length;
 
+  const triggerAutomatedVerify = async (vaultAddress: `0x${string}`, proofString: string) => {
+    try {
+      setAutoVerifyInFlight((prev) => ({ ...prev, [vaultAddress.toLowerCase()]: true }));
+      setToast('Worker agent submitting proof...');
+
+      const response = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vaultAddress, proofString }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || payload?.status !== 'success') {
+        throw new Error(payload?.error ?? 'Proof verification transaction failed');
+      }
+
+      await refetch();
+      setEscrows((prev) =>
+        prev.map((escrow) =>
+          escrow.fullHash.toLowerCase() === vaultAddress.toLowerCase()
+            ? { ...escrow, status: 'RELEASED' }
+            : escrow
+        )
+      );
+
+      setToast('PoT matched. Funds released.');
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      console.error('Automated worker verify failed:', error);
+      setToast('Automated verify failed');
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setAutoVerifyInFlight((prev) => ({ ...prev, [vaultAddress.toLowerCase()]: false }));
+    }
+  };
+
   const handleLaunch = async () => {
     if (!isConnected) {
       setToast('Please connect your wallet first!');
@@ -136,18 +180,21 @@ export default function Home() {
       return;
     }
 
+    if (!publicClient) {
+      setToast('Public client unavailable');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const taskDescription = taskInput.trim();
+    if (!taskDescription) {
+      setToast('Enter a proof string first');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
     try {
       const targetAgent = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
-      const taskDescription = taskInput.trim();
-      if (!taskDescription) {
-        setToast('Enter proof string');
-        setTimeout(() => setToast(null), 3000);
-        return;
-      }
-
-
-      setLastTaskDesc(taskDescription);
-
       const amountInEth = '0.01';
       const taskHash = generateProofHash(taskDescription);
 
@@ -159,90 +206,20 @@ export default function Home() {
         value: parseEther(amountInEth),
       });
 
-      if (!publicClient) {
-        setToast('Public client unavailable');
-        setTimeout(() => setToast(null), 3000);
-        return;
-      }
-
       await publicClient.waitForTransactionReceipt({ hash: txHash });
+      const latestVault = await getLatestVaultAddress({
+        publicClient,
+        factoryAddress: FACTORY_ADDRESS,
+      });
 
-      const latestVaults = (await publicClient.readContract({
-        address: FACTORY_ADDRESS,
-        abi: FACTORY_ABI,
-        functionName: 'getVaults',
-      })) as `0x${string}`[];
+      await refetch();
+      setToast('Vault created. Worker auto-verification started...');
+      setTimeout(() => setToast(null), 2500);
 
-      const newestVault = latestVaults[latestVaults.length - 1];
-      if (newestVault) {
-        setProofByVault((prev) => ({
-          ...prev,
-          [newestVault.toLowerCase()]: taskDescription,
-        }));
-      }
-
-      setToast('Protocol Launched!');
-      setTimeout(() => {
-        setToast(null);
-        refetch();
-      }, 3000);
-
+      await triggerAutomatedVerify(latestVault, taskDescription);
     } catch (error) {
       console.error('Blockchain Error:', error);
       setToast('Launch failed');
-      setTimeout(() => setToast(null), 3000);
-    }
-  };
-
-  const handleRealVerify = async (vaultAddress: `0x${string}`) => {
-    if (!userAddress) {
-      setToast('Connect wallet');
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-
-
-    try {
-      const proofString = taskInput.trim();
-
-
-      if (!proofString) {
-        setToast('Enter proof string');
-        setTimeout(() => setToast(null), 3000);
-        return;
-      }
-
-      setToast('Verifying Task...');
-
-      const txHash = await writeContractAsync({
-        address: vaultAddress,
-        abi: VAULT_ABI,
-        functionName: 'verifyAndRelease',
-        args: [proofString],
-      });
-
-      if (!publicClient) throw new Error('Public client unavailable');
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-
-      if (receipt.status !== 'success') {
-        throw new Error('Verification transaction reverted');
-      }
-
-
-
-
-      setToast('Funds Released Successfully!');
-      setEscrows((prev) =>
-        prev.map((escrow) =>
-          escrow.fullHash.toLowerCase() === vaultAddress.toLowerCase()
-            ? { ...escrow, status: 'RELEASED' }
-            : escrow
-        )
-      );
-      setTimeout(() => setToast(null), 3000);
-    } catch (error) {
-      console.error('Settlement Error:', error);
-      setToast('Verification Failed');
       setTimeout(() => setToast(null), 3000);
     }
   };
@@ -298,15 +275,14 @@ export default function Home() {
             <input
               value={taskInput}
               onChange={(e) => setTaskInput(e.target.value)}
-              placeholder="Enter proof string"
-              className="px-4 py-4 rounded-lg bg-black/30 border border-gray-700 text-white min-w-[260px]"
+              placeholder="Proof string for PoT"
+              className="px-5 py-4 rounded-lg border border-gray-700 bg-black/40 text-white min-w-[280px]"
             />
             <button
               onClick={handleLaunch}
               className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/20"
             >
-
-              {isConnected ? 'Launch Protocol' : 'Connect Wallet'}
+              {isConnected ? 'Launch + Auto Verify' : 'Connect Wallet'}
             </button>
             <button
               onClick={() =>
@@ -340,7 +316,7 @@ export default function Home() {
         <div className="bg-[#0d0d14] border border-gray-800 rounded-xl overflow-hidden shadow-2xl">
           {escrows.length === 0 ? (
             <div className="p-12 text-center text-gray-500 italic">
-              No active escrows. Click "Launch Protocol" to begin.
+              No active escrows. Click "Launch + Auto Verify" to begin.
             </div>
           ) : (
             <table className="w-full text-left text-sm">
@@ -354,8 +330,7 @@ export default function Home() {
               </thead>
               <tbody className="divide-y divide-gray-800">
                 {escrows.map((escrow) => {
-              const isAuthorizedBuyer = !!userAddress;
-
+                  const inFlight = autoVerifyInFlight[escrow.fullHash.toLowerCase()] ?? false;
 
                   return (
                     <tr key={escrow.fullHash} className="hover:bg-gray-900/30 transition-colors">
@@ -384,22 +359,15 @@ export default function Home() {
 
                       <td className="px-6 py-4">
                         {escrow.status === 'LOCKED' ? (
-                          isAuthorizedBuyer ? (
-                            <button
-                              onClick={() => handleRealVerify(escrow.fullHash)}
-                              className="text-[10px] uppercase font-bold bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white px-3 py-1.5 rounded transition-all border border-indigo-500/30"
-                            >
-                              Verify Delivery
-                            </button>
-                          ) : (
-                            <span
-                              title="Only buyer can verify"
-                              className="text-[10px] uppercase font-bold text-gray-500 border border-gray-700 px-3 py-1.5 rounded cursor-not-allowed inline-block"
-                            >
-                              Waiting
-                            </span>
-
-                          )
+                          <span
+                            className={`text-[10px] uppercase font-bold border px-3 py-1.5 rounded inline-block ${
+                              inFlight
+                                ? 'text-indigo-300 border-indigo-500/40'
+                                : 'text-gray-500 border-gray-700'
+                            }`}
+                          >
+                            {inFlight ? 'Worker Verifying...' : 'Auto Verification Pending'}
+                          </span>
                         ) : (
                           <div className="flex items-center">
                             <span className="text-[10px] text-gray-600 italic font-mono uppercase">
@@ -459,7 +427,7 @@ export default function Home() {
                 <div className="space-y-6 text-left">
                   <div className="flex justify-between items-center text-sm font-mono text-indigo-400">
                     <span>TRUST_ESCROW_ID_0x71...</span>
-                    <span>LOCKED</span>
+                    <span>AUTOMATED</span>
                   </div>
                   <div className="h-px bg-gray-800" />
                   <div className="grid grid-cols-2 gap-4">
@@ -473,7 +441,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-green-400 whitespace-pre">
-                    {`// PayAG Logic\nIF verification_hash == confirmed\nTHEN release_escrow(funds)\nELSE return_to_sender()`}
+                    {`// PayAG Logic\ncomputedHash = keccak256(proofString)\nIF computedHash == requiredTaskHash\nTHEN verifyAndRelease(proofString)`}
                   </div>
                 </div>
               </div>
@@ -482,109 +450,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="agents" className="px-6 py-24 border-t border-gray-900">
-        <div className="max-w-6xl mx-auto text-left">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Built for Every Agent</h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">
-              PayAG is the universal settlement layer for the autonomous workforce.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-            {[
-              {
-                model: 'GPT-4o / Claude 3.5',
-                useCase: 'Research & Synthesis',
-                action: 'Escrowing Data Bounties',
-              },
-              {
-                model: 'Llama 3 (Local)',
-                useCase: 'Private Computation',
-                action: 'Securing Compute Credits',
-              },
-              {
-                model: 'Custom Swarms',
-                useCase: 'Task Outsourcing',
-                action: 'Sub-Agent Arbitration',
-              },
-            ].map((agent, i) => (
-              <div
-                key={i}
-                className="bg-[#0d0d14] border border-gray-800 p-8 rounded-xl hover:border-indigo-500/50 transition-colors group text-left"
-              >
-                <div className="text-xs font-mono text-indigo-400 mb-2">{agent.model}</div>
-                <h3 className="text-xl font-bold mb-4">{agent.useCase}</h3>
-                <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-                  Automatically lock funds in a PayAG vault until the agent delivers a verified
-                  output hash.
-                </p>
-                <div className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors">
-                  {agent.action} →
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="protocol" className="px-6 py-24 border-t border-gray-900 bg-[#0a0a0f]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold mb-12 text-left">Developer Documentation</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-left">
-            <div>
-              <h3 className="text-indigo-400 font-mono text-sm mb-4 uppercase tracking-widest">
-                01. Integration
-              </h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Connect your AI agent to the PayAG API via our lightweight SDK. Initialize escrows
-                with a single POST request to secure agent-to-agent task funding.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-indigo-400 font-mono text-sm mb-4 uppercase tracking-widest">
-                02. Proof-of-Task
-              </h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                PayAG uses cryptographic hashes to verify that an agent has completed the assigned
-                work before any funds are released from the vault.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-indigo-400 font-mono text-sm mb-4 uppercase tracking-widest">
-                03. Settlement
-              </h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Once verified, the escrow is automatically settled. Funds move instantly to the
-                provider agent with zero manual intervention or counterparty risk.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-16 bg-[#0d0d14] p-8 rounded-2xl border border-gray-800 font-mono text-xs text-left">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-red-500/20" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
-              <div className="w-3 h-3 rounded-full bg-green-500/20" />
-              <span className="ml-2 text-gray-500">// Example API Request</span>
-            </div>
-            <code className="text-gray-300">
-              {`curl -X POST https://payag.ai/api/escrow \\
--H "Authorization: Bearer YOUR_API_KEY" \\
--d '{
-  "amount": "50.00",
-  "currency": "USDC",
-  "provider": "Agent_0x92...",
-  "logic": "proof_of_task"
-}'`}
-            </code>
-          </div>
-        </div>
-      </section>
-
       <footer className="px-6 py-12 border-t border-gray-900 bg-[#0a0a0f] text-left">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-gray-500 text-sm">© 2026 PayAG Labs. All rights reserved.</div>
+          <div className="text-gray-500 text-sm">Copyright 2026 PayAG Labs. All rights reserved.</div>
           <div className="flex space-x-6 text-gray-500">
             <a href="#" className="hover:text-indigo-400 transition-colors">
               Twitter
@@ -600,13 +468,10 @@ export default function Home() {
       </footer>
 
       {toast && (
-        <div className="fixed bottom-8 right-8 bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-2xl animate-bounce border border-indigo-400 z-50 font-bold">
+        <div className="fixed bottom-8 right-8 bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-2xl border border-indigo-400 z-50 font-bold">
           {toast}
         </div>
       )}
     </main>
   );
 }
-
-
-
