@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from 'wagmi';
 import { parseEther } from 'viem';
@@ -80,11 +81,17 @@ function getStageState(index: number, completed: number, inFlight: boolean): 'Pe
 }
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
   const { isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
 
-  const [taskInput, setTaskInput] = useState('final-proof-1');
+  const [taskInput, setTaskInput] = useState('');
+  const [workerAddress, setWorkerAddress] = useState('0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
+  const [serviceName, setServiceName] = useState('Custom Agent Job');
+  const [budgetEth, setBudgetEth] = useState('0.010');
+  const [listingCurrency, setListingCurrency] = useState('ETH');
+
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [autoVerifyInFlight, setAutoVerifyInFlight] = useState<Record<string, boolean>>({});
@@ -97,6 +104,30 @@ export default function DashboardPage() {
     abi: FACTORY_ABI,
     functionName: 'getVaults',
   });
+
+  useEffect(() => {
+    const qWorker = searchParams.get('worker');
+    const qService = searchParams.get('service');
+    const qPrice = searchParams.get('price');
+    const qCurrency = searchParams.get('currency');
+
+    if (qWorker) setWorkerAddress(qWorker);
+    if (qService) setServiceName(qService);
+    if (qPrice) setBudgetEth(qPrice);
+    if (qCurrency) setListingCurrency(qCurrency);
+  }, [searchParams]);
+
+  const computedProofPayload = useMemo(
+    () =>
+      JSON.stringify({
+        service: serviceName.trim(),
+        requirements: taskInput.trim(),
+        budget: budgetEth.trim(),
+        currency: listingCurrency.trim(),
+        worker: workerAddress.trim(),
+      }),
+    [serviceName, taskInput, budgetEth, listingCurrency, workerAddress]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -234,7 +265,6 @@ export default function DashboardPage() {
       setToast('PoT matched. Milestone released.');
       setTimeout(() => setToast(null), 3000);
     } catch (error) {
-      console.error('Automated worker verify failed:', error);
       setToast(error instanceof Error ? error.message : 'Automated verify failed');
       setTimeout(() => setToast(null), 3000);
     } finally {
@@ -246,18 +276,19 @@ export default function DashboardPage() {
     if (!isConnected) throw new Error('Please connect your wallet first');
     if (!publicClient) throw new Error('Public client unavailable');
 
-    const proofPayload = taskInput.trim();
-    if (!proofPayload) throw new Error('Enter task proof payload first');
+    const requirements = taskInput.trim();
+    if (!requirements) throw new Error('Enter job requirements first');
+    if (!/^0x[a-fA-F0-9]{40}$/.test(workerAddress.trim())) throw new Error('Worker address invalid');
 
-    const targetAgent = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
+    const proofPayload = computedProofPayload;
     const taskHash = generateProofHash(proofPayload);
 
     const txHash = await writeContractAsync({
       address: FACTORY_ADDRESS,
       abi: FACTORY_ABI,
       functionName: 'createVault',
-      args: [targetAgent, taskHash],
-      value: parseEther('0.01'),
+      args: [workerAddress.trim() as `0x${string}`, taskHash],
+      value: parseEther(budgetEth.trim()),
     });
 
     await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -280,7 +311,7 @@ export default function DashboardPage() {
   const handleCreateVault = async () => {
     try {
       const latestVault = await createVaultOnly();
-      setToast(`Vault created: ${latestVault.slice(0, 8)}...${latestVault.slice(-6)}`);
+      setToast(`Vault created for ${serviceName}: ${latestVault.slice(0, 8)}...${latestVault.slice(-6)}`);
       setTimeout(() => setToast(null), 3000);
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'Create vault failed');
@@ -291,9 +322,6 @@ export default function DashboardPage() {
   const handleVerifyLatest = async () => {
     try {
       if (!publicClient) throw new Error('Public client unavailable');
-      const proofPayload = taskInput.trim();
-      if (!proofPayload) throw new Error('Enter task proof payload first');
-
       const vaults = (await publicClient.readContract({
         address: FACTORY_ADDRESS,
         abi: FACTORY_ABI,
@@ -302,7 +330,7 @@ export default function DashboardPage() {
 
       if (vaults.length === 0) throw new Error('No vault found to verify');
       const latestVault = vaults[vaults.length - 1];
-      await triggerAutomatedVerify(latestVault, proofPayload, 0);
+      await triggerAutomatedVerify(latestVault, computedProofPayload, 0);
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'Verify failed');
       setTimeout(() => setToast(null), 3000);
@@ -313,7 +341,7 @@ export default function DashboardPage() {
     try {
       const latestVault = await createVaultOnly();
       if (demoMode) {
-        await triggerAutomatedVerify(latestVault, taskInput.trim(), 0);
+        await triggerAutomatedVerify(latestVault, computedProofPayload, 0);
       } else {
         setToast('Vault created. Run Verify when agent output is ready.');
         setTimeout(() => setToast(null), 3000);
@@ -345,21 +373,57 @@ export default function DashboardPage() {
       <section className="mx-auto max-w-6xl px-6 py-10">
         <h1 className="mb-2 text-3xl font-bold">Agent Settlement Dashboard</h1>
         <p className="mb-6 text-sm text-gray-400">
-          Agent-to-agent workflow: Create vault with proof hash, then run verify after worker output is ready.
+          Agent A discovers Agent B in marketplace and creates escrow with job requirements and price.
         </p>
 
         <div className="mb-8 rounded-xl border border-gray-800 bg-[#0d0d14] p-4">
-          <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-gray-500">
-            Task Proof Payload (JSON/text)
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Worker Agent Wallet</label>
+              <input
+                value={workerAddress}
+                onChange={(e) => setWorkerAddress(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Service</label>
+              <input
+                value={serviceName}
+                onChange={(e) => setServiceName(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Escrow Amount (ETH)</label>
+              <input
+                value={budgetEth}
+                onChange={(e) => setBudgetEth(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Listing Currency</label>
+              <input
+                value={listingCurrency}
+                onChange={(e) => setListingCurrency(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
+              />
+            </div>
+          </div>
+
+          <label className="mb-2 mt-4 block text-xs uppercase tracking-[0.14em] text-gray-500">
+            Job Requirements
           </label>
-          <input
+          <textarea
             value={taskInput}
             onChange={(e) => setTaskInput(e.target.value)}
-            placeholder='Example: {"jobId":"42","resultHash":"0x..."}'
+            placeholder="Describe expected output, acceptance criteria, and delivery format"
+            rows={4}
             className="w-full rounded-lg border border-gray-700 bg-black/40 px-5 py-4 text-white"
           />
           <p className="mt-2 text-xs text-gray-500">
-            Must exactly match the payload used to derive task hash for this milestone.
+            System hashes an internal proof payload built from worker + service + amount + requirements.
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">

@@ -4,6 +4,7 @@ export type AgentListing = {
   service: string;
   price: string;
   currency: string;
+  workerAddress: `0x${string}`;
   endpoint?: string;
   status: 'OPEN' | 'PAUSED';
   createdAt: string;
@@ -16,8 +17,9 @@ const listings: AgentListing[] = [
     id: 'list_1',
     agentName: 'AuditForge-01',
     service: 'Solidity Auditor',
-    price: '25',
-    currency: 'USDC',
+    price: '0.010',
+    currency: 'ETH',
+    workerAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
     endpoint: 'https://agent.example/sol-audit',
     status: 'OPEN',
     createdAt: new Date().toISOString(),
@@ -28,8 +30,9 @@ const listings: AgentListing[] = [
     id: 'list_2',
     agentName: 'ScrapeGrid-22',
     service: 'Python Scraper',
-    price: '12',
-    currency: 'USDC',
+    price: '0.012',
+    currency: 'ETH',
+    workerAddress: '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
     endpoint: 'https://agent.example/python-scraper',
     status: 'OPEN',
     createdAt: new Date().toISOString(),
@@ -40,8 +43,9 @@ const listings: AgentListing[] = [
     id: 'list_3',
     agentName: 'SchemaCompile-X',
     service: 'JSON Compiler',
-    price: '9',
-    currency: 'USDC',
+    price: '0.009',
+    currency: 'ETH',
+    workerAddress: '0xdD2FD4581271e230360230F9337D5c0430Bf44C0',
     endpoint: 'https://agent.example/json-compiler',
     status: 'OPEN',
     createdAt: new Date().toISOString(),
@@ -67,6 +71,7 @@ export function addListing(
     service: input.service,
     price: input.price,
     currency: input.currency,
+    workerAddress: input.workerAddress,
     endpoint: input.endpoint,
     status: input.status ?? 'OPEN',
     createdAt: new Date().toISOString(),
