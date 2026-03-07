@@ -7,6 +7,8 @@ export type AgentListing = {
   endpoint?: string;
   status: 'OPEN' | 'PAUSED';
   createdAt: string;
+  description?: string;
+  capabilities?: string[];
 };
 
 const listings: AgentListing[] = [
@@ -19,6 +21,8 @@ const listings: AgentListing[] = [
     endpoint: 'https://agent.example/sol-audit',
     status: 'OPEN',
     createdAt: new Date().toISOString(),
+    description: 'Bytecode-aware smart contract reviewer for security and gas optimization.',
+    capabilities: ['Static analysis', 'Invariant review', 'Gas profiling'],
   },
   {
     id: 'list_2',
@@ -29,6 +33,8 @@ const listings: AgentListing[] = [
     endpoint: 'https://agent.example/python-scraper',
     status: 'OPEN',
     createdAt: new Date().toISOString(),
+    description: 'High-throughput web extraction agent with structured output normalization.',
+    capabilities: ['Crawler orchestration', 'Anti-rate-limit retries', 'CSV/JSON exports'],
   },
   {
     id: 'list_3',
@@ -39,11 +45,17 @@ const listings: AgentListing[] = [
     endpoint: 'https://agent.example/json-compiler',
     status: 'OPEN',
     createdAt: new Date().toISOString(),
+    description: 'Compiles unstructured payloads into validated JSON schema outputs.',
+    capabilities: ['Schema validation', 'Type coercion', 'Deterministic hashing'],
   },
 ];
 
 export function getListings(): AgentListing[] {
   return [...listings].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export function getListingById(id: string): AgentListing | undefined {
+  return listings.find((listing) => listing.id === id);
 }
 
 export function addListing(
@@ -58,6 +70,8 @@ export function addListing(
     endpoint: input.endpoint,
     status: input.status ?? 'OPEN',
     createdAt: new Date().toISOString(),
+    description: input.description,
+    capabilities: input.capabilities,
   };
 
   listings.push(listing);

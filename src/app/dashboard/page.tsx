@@ -90,6 +90,7 @@ export default function DashboardPage() {
   const [autoVerifyInFlight, setAutoVerifyInFlight] = useState<Record<string, boolean>>({});
   const [verifyTxByVault, setVerifyTxByVault] = useState<Record<string, `0x${string}`>>({});
   const [createTxByVault, setCreateTxByVault] = useState<Record<string, `0x${string}`>>({});
+  const [demoMode, setDemoMode] = useState(true);
 
   const { data: allVaults, refetch } = useReadContract({
     address: FACTORY_ADDRESS,
@@ -234,46 +235,64 @@ export default function DashboardPage() {
       setTimeout(() => setToast(null), 3000);
     } catch (error) {
       console.error('Automated worker verify failed:', error);
-      setToast('Automated verify failed');
+      setToast(error instanceof Error ? error.message : 'Automated verify failed');
       setTimeout(() => setToast(null), 3000);
     } finally {
       setAutoVerifyInFlight((prev) => ({ ...prev, [vaultAddress.toLowerCase()]: false }));
     }
   };
 
-  const handleLaunch = async () => {
-    if (!isConnected) {
-      setToast('Please connect your wallet first!');
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
+  const createVaultOnly = async (): Promise<`0x${string}`> => {
+    if (!isConnected) throw new Error('Please connect your wallet first');
+    if (!publicClient) throw new Error('Public client unavailable');
 
-    if (!publicClient) {
-      setToast('Public client unavailable');
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
+    const proofPayload = taskInput.trim();
+    if (!proofPayload) throw new Error('Enter task proof payload first');
 
-    const taskDescription = taskInput.trim();
-    if (!taskDescription) {
-      setToast('Enter a proof string first');
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
+    const targetAgent = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
+    const taskHash = generateProofHash(proofPayload);
 
+    const txHash = await writeContractAsync({
+      address: FACTORY_ADDRESS,
+      abi: FACTORY_ABI,
+      functionName: 'createVault',
+      args: [targetAgent, taskHash],
+      value: parseEther('0.01'),
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    const vaults = (await publicClient.readContract({
+      address: FACTORY_ADDRESS,
+      abi: FACTORY_ABI,
+      functionName: 'getVaults',
+    })) as `0x${string}`[];
+
+    if (vaults.length === 0) throw new Error('No vaults found after creation');
+
+    const latestVault = vaults[vaults.length - 1];
+    setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
+    await refetch();
+
+    return latestVault;
+  };
+
+  const handleCreateVault = async () => {
     try {
-      const targetAgent = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
-      const taskHash = generateProofHash(taskDescription);
+      const latestVault = await createVaultOnly();
+      setToast(`Vault created: ${latestVault.slice(0, 8)}...${latestVault.slice(-6)}`);
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Create vault failed');
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
 
-      const txHash = await writeContractAsync({
-        address: FACTORY_ADDRESS,
-        abi: FACTORY_ABI,
-        functionName: 'createVault',
-        args: [targetAgent, taskHash],
-        value: parseEther('0.01'),
-      });
-
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const handleVerifyLatest = async () => {
+    try {
+      if (!publicClient) throw new Error('Public client unavailable');
+      const proofPayload = taskInput.trim();
+      if (!proofPayload) throw new Error('Enter task proof payload first');
 
       const vaults = (await publicClient.readContract({
         address: FACTORY_ADDRESS,
@@ -281,16 +300,26 @@ export default function DashboardPage() {
         functionName: 'getVaults',
       })) as `0x${string}`[];
 
-      if (vaults.length === 0) throw new Error('No vaults found after creation');
-
+      if (vaults.length === 0) throw new Error('No vault found to verify');
       const latestVault = vaults[vaults.length - 1];
-      setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
-
-      await refetch();
-      await triggerAutomatedVerify(latestVault, taskDescription, 0);
+      await triggerAutomatedVerify(latestVault, proofPayload, 0);
     } catch (error) {
-      console.error('Launch failed:', error);
-      setToast('Launch failed');
+      setToast(error instanceof Error ? error.message : 'Verify failed');
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleLaunch = async () => {
+    try {
+      const latestVault = await createVaultOnly();
+      if (demoMode) {
+        await triggerAutomatedVerify(latestVault, taskInput.trim(), 0);
+      } else {
+        setToast('Vault created. Run Verify when agent output is ready.');
+        setTimeout(() => setToast(null), 3000);
+      }
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Launch failed');
       setTimeout(() => setToast(null), 3000);
     }
   };
@@ -314,21 +343,53 @@ export default function DashboardPage() {
       </nav>
 
       <section className="mx-auto max-w-6xl px-6 py-10">
-        <h1 className="mb-6 text-3xl font-bold">Agent Settlement Dashboard</h1>
+        <h1 className="mb-2 text-3xl font-bold">Agent Settlement Dashboard</h1>
+        <p className="mb-6 text-sm text-gray-400">
+          Agent-to-agent workflow: Create vault with proof hash, then run verify after worker output is ready.
+        </p>
 
-        <div className="mb-8 flex flex-col gap-3 sm:flex-row">
+        <div className="mb-8 rounded-xl border border-gray-800 bg-[#0d0d14] p-4">
+          <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-gray-500">
+            Task Proof Payload (JSON/text)
+          </label>
           <input
             value={taskInput}
             onChange={(e) => setTaskInput(e.target.value)}
-            placeholder="Proof string for milestone 0"
-            className="min-w-[280px] rounded-lg border border-gray-700 bg-black/40 px-5 py-4 text-white"
+            placeholder='Example: {"jobId":"42","resultHash":"0x..."}'
+            className="w-full rounded-lg border border-gray-700 bg-black/40 px-5 py-4 text-white"
           />
-          <button
-            onClick={handleLaunch}
-            className="rounded-lg bg-indigo-600 px-8 py-4 font-bold text-white hover:bg-indigo-500"
-          >
-            {isConnected ? 'Launch + Auto Verify' : 'Connect Wallet'}
-          </button>
+          <p className="mt-2 text-xs text-gray-500">
+            Must exactly match the payload used to derive task hash for this milestone.
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleCreateVault}
+              className="rounded-lg bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-500"
+            >
+              {isConnected ? 'Create Vault' : 'Connect Wallet'}
+            </button>
+            <button
+              onClick={handleVerifyLatest}
+              className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-5 py-3 text-sm font-bold text-indigo-200 hover:bg-indigo-500/20"
+            >
+              Run Verify (Latest Vault)
+            </button>
+            <button
+              onClick={handleLaunch}
+              className="rounded-lg border border-gray-700 px-5 py-3 text-sm font-bold text-gray-200 hover:border-gray-500"
+            >
+              Launch + Auto Verify (Demo)
+            </button>
+            <label className="ml-auto flex items-center gap-2 text-xs text-gray-400">
+              <input
+                type="checkbox"
+                checked={demoMode}
+                onChange={(e) => setDemoMode(e.target.checked)}
+              />
+              Demo Mode Auto Verify
+            </label>
+          </div>
         </div>
 
         <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -404,8 +465,8 @@ export default function DashboardPage() {
                               stageState === 'Released'
                                 ? 'border-green-500/30 bg-green-500/10 text-green-300'
                                 : stageState === 'Verifying'
-                                ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
-                                : 'border-gray-700 bg-transparent text-gray-500';
+                                  ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
+                                  : 'border-gray-700 bg-transparent text-gray-500';
 
                             return (
                               <span

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 
 type Listing = {
@@ -11,6 +12,8 @@ type Listing = {
   endpoint?: string;
   status: 'OPEN' | 'PAUSED';
   createdAt: string;
+  description?: string;
+  capabilities?: string[];
 };
 
 type LiveVault = {
@@ -119,7 +122,11 @@ export default function LiveAgentJobBoard() {
               </div>
             ) : (
               listings.map((listing) => (
-                <div key={listing.id} className="rounded-lg border border-gray-800 bg-black p-4">
+                <Link
+                  key={listing.id}
+                  href={`/marketplace/agent/${listing.id}`}
+                  className="block rounded-lg border border-gray-800 bg-black p-4 transition-colors hover:border-indigo-500/60"
+                >
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-white">{listing.service}</p>
                     <span className="text-xs text-indigo-400">
@@ -127,10 +134,13 @@ export default function LiveAgentJobBoard() {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-gray-400">by {listing.agentName}</p>
-                  {listing.endpoint && (
-                    <p className="mt-1 truncate text-xs text-gray-500">{listing.endpoint}</p>
+                  {listing.description && (
+                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">{listing.description}</p>
                   )}
-                </div>
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-indigo-400 underline">
+                    Open agent profile
+                  </p>
+                </Link>
               ))
             )}
           </div>

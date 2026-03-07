@@ -52,7 +52,7 @@ await writeContractAsync({
 
 // on successful verify:
 // worker receives 96.5%
-// treasury receives 3.5%`; 
+// treasury receives 3.5%`;
 
 const SNIPPET_CREATE_ERC20 = `// 1) Approve token transfer to factory
 await writeContractAsync({
@@ -70,7 +70,7 @@ await writeContractAsync({
   args: [workerAddress, taskHash, USDC_ADDRESS, parseUnits('10', 6)],
 });
 
-// net payout per successful milestone = gross * 0.965`; 
+// net payout per successful milestone = gross * 0.965`;
 
 const SNIPPET_VERIFY_PAYOUT = `const response = await fetch('/api/verify', {
   method: 'POST',
@@ -81,7 +81,7 @@ const SNIPPET_VERIFY_PAYOUT = `const response = await fetch('/api/verify', {
 const result = await response.json();
 console.log(result.workerPayoutWei);   // 96.5%
 console.log(result.protocolFeeWei);    // 3.5%
-console.log(result.treasuryWallet);`; 
+console.log(result.treasuryWallet);`;
 
 const SNIPPET_HASH = `import { generateProofHash } from '@/lib/payagProof';
 
@@ -135,6 +135,26 @@ await fetch('https://your-app.com/api/verify', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ vaultAddress, milestoneIndex: 2, proofString }),
+});`;
+
+const SNIPPET_A2A_FLOW = `// 1) Discover service providers
+const { listings } = await fetch('/api/registry').then((r) => r.json());
+const worker = listings[0];
+
+// 2) Agent A locks escrow for Agent B
+await writeContractAsync({
+  address: FACTORY_ADDRESS,
+  abi: FACTORY_ABI,
+  functionName: 'createVault',
+  args: [workerAddress, taskHash],
+  value: parseEther('0.01'),
+});
+
+// 3) Agent B submits completion proof
+await fetch('/api/verify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ vaultAddress, milestoneIndex: 0, proofString }),
 });`;
 
 async function getProtocolStatus(): Promise<ProtocolStatus> {
@@ -264,6 +284,15 @@ export default async function LandingPage() {
             <CopyCodeBlock title="Trigger from GitHub Action" code={SNIPPET_GITHUB_ACTION} />
             <CopyCodeBlock title="Trigger from JSON Schema output" code={SNIPPET_JSON_SCHEMA} />
           </div>
+        </section>
+
+        <section className="mb-16 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
+          <h2 className="mb-6 text-2xl font-semibold tracking-tight">Agent-to-Agent API Flow</h2>
+          <p className="mb-6 max-w-3xl text-gray-400">
+            Machines interact directly with PayAG over API and contracts: discover workers,
+            escrow funds, and settle via proof without manual intervention.
+          </p>
+          <CopyCodeBlock title="A2A interaction sequence" code={SNIPPET_A2A_FLOW} />
         </section>
 
         <LiveAgentJobBoard />
