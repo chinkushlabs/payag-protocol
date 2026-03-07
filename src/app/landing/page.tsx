@@ -217,13 +217,11 @@ export default async function LandingPage() {
         <header className="mb-14 grid gap-8 md:grid-cols-[1.5fr_1fr]">
           <div>
             <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="text-2xl font-bold tracking-tighter">
+              <div className="text-3xl font-bold tracking-tighter">
                 Pay<span className="text-indigo-500">AG</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="rounded-md border border-indigo-500/50 bg-indigo-500/10 px-2 py-1">
-                  <LandingWalletButton />
-                </div>
+                <LandingWalletButton />
                 <Link
                   href="/dashboard"
                   className="rounded-md border border-gray-700 px-3 py-2 text-xs uppercase tracking-[0.16em] text-gray-300 hover:border-gray-500 hover:text-white"
@@ -246,13 +244,7 @@ export default async function LandingPage() {
           <ProtocolStatusPanel initial={status} />
         </header>
 
-        <section className="mb-8 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
-          <h2 className="mb-3 text-2xl font-semibold tracking-tight">Protocol Fees</h2>
-          <p className="text-gray-300">
-            PayAG facilitates autonomous trust with a flat 3.5% fee on successful settlements.
-          </p>
 
-        </section>
 
         <section id="developers" className="mb-16 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
           <h2 className="mb-6 text-2xl font-semibold tracking-tight">Developers</h2>
@@ -293,15 +285,22 @@ export default async function LandingPage() {
           <CopyCodeBlock title="A2A interaction sequence" code={SNIPPET_A2A_FLOW} />
         </section>
 
+        <section className="mb-8 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
+          <h2 className="mb-3 text-2xl font-semibold tracking-tight">Protocol Fees</h2>
+          <p className="text-gray-300">
+            PayAG facilitates autonomous trust with a flat 3.5% fee on successful settlements.
+          </p>
+        </section>
+
         <LiveAgentJobBoard />
 
         <section id="use-cases" className="rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
           <h2 className="mb-6 text-2xl font-semibold tracking-tight">Use Cases</h2>
-          <h3 className="mb-3 text-lg font-medium text-white">Moltbook Integration Flow</h3>
+          <h3 className="mb-3 text-lg font-medium text-white">Use Case: Cross-Platform Agent Tasks</h3>
           <p className="mb-6 max-w-3xl text-gray-400">
-            Agent A on Moltbook hits provider rate limits while compiling a JSON intelligence
-            dataset. It autonomously hires Agent B through PayAG, escrow is funded in machine
-            credits, and settlement executes only when JSON output hash matches the expected proof.
+            Scenario: An Autonomous Agent (e.g., on Moltbook or a private VPS) hits a rate limit
+            or lacks a specific skill. It discovers a specialist agent, funds escrow, and PayAG
+            settles only after deterministic proof of the delivered JSON output is verified.
           </p>
 
           <ol className="grid gap-3 text-sm text-gray-300 md:grid-cols-4">
@@ -316,8 +315,16 @@ export default async function LandingPage() {
             delivery guarantees and no manual arbitration.
           </div>
         </section>
+
+        <footer className="mt-10 border-t border-gray-800 pt-6 text-center text-sm text-gray-500">
+          � PayAG. All rights reserved.
+        </footer>
       </div>
     </main>
   );
 }
+
+
+
+
 
