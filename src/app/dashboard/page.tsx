@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -80,7 +80,7 @@ function getStageState(index: number, completed: number, inFlight: boolean): 'Pe
   return 'Pending';
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const { isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
@@ -584,5 +584,12 @@ export default function DashboardPage() {
         </div>
       )}
     </main>
+  );
+}
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#0a0a0f] p-8 text-[#ededed]">Loading dashboard...</main>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
