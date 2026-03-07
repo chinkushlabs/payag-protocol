@@ -251,9 +251,7 @@ export default async function LandingPage() {
           <p className="text-gray-300">
             PayAG facilitates autonomous trust with a flat 3.5% fee on successful settlements.
           </p>
-          <p className="mt-2 text-sm text-gray-500">
-            Treasury: 0x82343e2fed61fca6d2ead64689ff406e29fea7c8
-          </p>
+
         </section>
 
         <section id="developers" className="mb-16 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
@@ -322,3 +320,4 @@ export default async function LandingPage() {
     </main>
   );
 }
+

@@ -19,6 +19,14 @@ type EscrowItem = {
   milestonesTotal: number;
 };
 
+type RegistryListing = {
+  id: string;
+  service: string;
+  currency: string;
+  workerAddress: `0x${string}`;
+  price: string;
+};
+
 const FACTORY_ADDRESS =
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}` | undefined) ??
   '0x4c3825FA6DDfd2eaCE6fa9191de3fb3c204bAc3c';
@@ -87,10 +95,14 @@ function DashboardContent() {
   const publicClient = usePublicClient();
 
   const [taskInput, setTaskInput] = useState('');
-  const [workerAddress, setWorkerAddress] = useState('0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
-  const [serviceName, setServiceName] = useState('Custom Agent Job');
-  const [budgetEth, setBudgetEth] = useState('0.010');
-  const [listingCurrency, setListingCurrency] = useState('ETH');
+  const [workerAddress, setWorkerAddress] = useState('');
+  const [serviceName, setServiceName] = useState('');
+  const [budgetEth, setBudgetEth] = useState('');
+  const [listingCurrency, setListingCurrency] = useState('');
+
+  const [listings, setListings] = useState<RegistryListing[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
+  const [currencyOptions, setCurrencyOptions] = useState<string[]>([]);
 
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
@@ -106,6 +118,28 @@ function DashboardContent() {
   });
 
   useEffect(() => {
+    const loadListings = async () => {
+      try {
+        const res = await fetch('/api/registry', { cache: 'no-store' });
+        const json = await res.json();
+        const rows = (Array.isArray(json?.listings) ? json.listings : []) as RegistryListing[];
+        setListings(rows);
+
+        const services = Array.from(new Set(rows.map((row) => row.service).filter(Boolean)));
+        const currencies = Array.from(new Set(rows.map((row) => row.currency).filter(Boolean)));
+
+        setServiceOptions(services);
+        setCurrencyOptions(currencies.length > 0 ? currencies : ['ETH']);
+      } catch {
+        setServiceOptions([]);
+        setCurrencyOptions(['ETH']);
+      }
+    };
+
+    loadListings();
+  }, []);
+
+  useEffect(() => {
     const qWorker = searchParams.get('worker');
     const qService = searchParams.get('service');
     const qPrice = searchParams.get('price');
@@ -116,6 +150,28 @@ function DashboardContent() {
     if (qPrice) setBudgetEth(qPrice);
     if (qCurrency) setListingCurrency(qCurrency);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!serviceName && serviceOptions.length > 0 && searchParams.get('service')) {
+      setServiceName(searchParams.get('service') ?? '');
+    }
+  }, [serviceOptions, searchParams, serviceName]);
+
+  useEffect(() => {
+    if (!listingCurrency && currencyOptions.length === 1) {
+      setListingCurrency(currencyOptions[0]);
+    }
+  }, [currencyOptions, listingCurrency]);
+
+  useEffect(() => {
+    if (!serviceName) return;
+    const match = listings.find((row) => row.service === serviceName);
+    if (!match) return;
+
+    if (!workerAddress) setWorkerAddress(match.workerAddress);
+    if (!budgetEth) setBudgetEth(match.price);
+    if (!listingCurrency) setListingCurrency(match.currency);
+  }, [serviceName, listings, workerAddress, budgetEth, listingCurrency]);
 
   const computedProofPayload = useMemo(
     () =>
@@ -204,6 +260,12 @@ function DashboardContent() {
   );
   const settledCount = escrows.filter((e) => e.status === 'RELEASED').length;
 
+  const adjustBudget = (delta: number) => {
+    const current = Number.parseFloat(budgetEth || '0');
+    const next = Math.max(0, current + delta);
+    setBudgetEth(next.toFixed(3));
+  };
+
   const triggerAutomatedVerify = async (
     vaultAddress: `0x${string}`,
     proofString: string,
@@ -278,6 +340,9 @@ function DashboardContent() {
 
     const requirements = taskInput.trim();
     if (!requirements) throw new Error('Enter job requirements first');
+    if (!serviceName.trim()) throw new Error('Select a service');
+    if (!listingCurrency.trim()) throw new Error('Select a listing currency');
+    if (!budgetEth.trim() || Number.parseFloat(budgetEth) <= 0) throw new Error('Enter a valid amount');
     if (!/^0x[a-fA-F0-9]{40}$/.test(workerAddress.trim())) throw new Error('Worker address invalid');
 
     const proofPayload = computedProofPayload;
@@ -383,32 +448,64 @@ function DashboardContent() {
               <input
                 value={workerAddress}
                 onChange={(e) => setWorkerAddress(e.target.value)}
+                placeholder="0x..."
                 className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
               />
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Service</label>
-              <input
+              <select
                 value={serviceName}
                 onChange={(e) => setServiceName(e.target.value)}
                 className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
-              />
+              >
+                <option value="">Select service</option>
+                {serviceOptions.map((service) => (
+                  <option key={service} value={service}>
+                    {service}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Escrow Amount (ETH)</label>
-              <input
-                value={budgetEth}
-                onChange={(e) => setBudgetEth(e.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
-              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => adjustBudget(-0.001)}
+                  className="rounded border border-gray-700 px-3 py-3 text-sm text-gray-200 hover:border-gray-500"
+                >
+                  -
+                </button>
+                <input
+                  value={budgetEth}
+                  onChange={(e) => setBudgetEth(e.target.value)}
+                  placeholder="0.010"
+                  className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => adjustBudget(0.001)}
+                  className="rounded border border-gray-700 px-3 py-3 text-sm text-gray-200 hover:border-gray-500"
+                >
+                  +
+                </button>
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Listing Currency</label>
-              <input
+              <select
                 value={listingCurrency}
                 onChange={(e) => setListingCurrency(e.target.value)}
                 className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
-              />
+              >
+                <option value="">Select currency</option>
+                {currencyOptions.map((currency) => (
+                  <option key={currency} value={currency}>
+                    {currency}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -586,6 +683,7 @@ function DashboardContent() {
     </main>
   );
 }
+
 export default function DashboardPage() {
   return (
     <Suspense fallback={<main className="min-h-screen bg-[#0a0a0f] p-8 text-[#ededed]">Loading dashboard...</main>}>
