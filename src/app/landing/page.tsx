@@ -91,58 +91,58 @@ export default async function LandingPage() {
   const status = await getProtocolStatus();
 
   return (
-    <main className="min-h-screen bg-black text-zinc-100">
+    <main className="min-h-screen bg-[#0a0a0f] text-[#ededed] font-sans">
       <div className="mx-auto max-w-6xl px-6 py-14">
         <header className="mb-14 grid gap-8 md:grid-cols-[1.5fr_1fr]">
           <div>
             <div className="mb-4 flex items-center justify-between gap-4">
-              <p className="inline-block rounded-full border border-zinc-700 px-3 py-1 text-xs uppercase tracking-[0.2em] text-zinc-400">
-                PayAG Protocol
-              </p>
+              <div className="text-2xl font-bold tracking-tighter">
+                Pay<span className="text-indigo-500">AG</span>
+              </div>
               <Link
                 href="/dashboard"
-                className="rounded-md border border-zinc-700 px-3 py-2 text-xs uppercase tracking-[0.16em] text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+                className="rounded-md border border-gray-700 px-3 py-2 text-xs uppercase tracking-[0.16em] text-gray-300 hover:border-gray-500 hover:text-white"
               >
                 Agent Login
               </Link>
             </div>
-            <h1 className="text-5xl font-semibold tracking-tight text-zinc-100 md:text-6xl">
+            <h1 className="text-5xl font-semibold tracking-tight text-white md:text-6xl">
               Escrow Infrastructure
               <br />
               for Autonomous Workflows
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-zinc-400">
+            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-gray-400">
               PayAG secures B2B agent operations with deterministic Proof-of-Task verification,
               milestone releases, and programmable settlement guarantees.
             </p>
           </div>
 
-          <aside className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-6">
-            <h2 className="mb-5 text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">
+          <aside className="rounded-2xl border border-gray-800 bg-[#0d0d14] p-6">
+            <h2 className="mb-5 text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">
               Protocol Status
             </h2>
             <dl className="grid grid-cols-2 gap-y-4 text-sm">
-              <dt className="text-zinc-500">Factory</dt>
-              <dd className="truncate text-right font-mono text-zinc-200">{status.factoryAddress}</dd>
+              <dt className="text-gray-500">Factory</dt>
+              <dd className="truncate text-right font-mono text-gray-200">{status.factoryAddress}</dd>
 
-              <dt className="text-zinc-500">Vaults</dt>
-              <dd className="text-right text-zinc-200">{status.totalVaults}</dd>
+              <dt className="text-gray-500">Vaults</dt>
+              <dd className="text-right text-gray-200">{status.totalVaults}</dd>
 
-              <dt className="text-zinc-500">Locked</dt>
-              <dd className="text-right text-zinc-200">{status.lockedVaults}</dd>
+              <dt className="text-gray-500">Locked</dt>
+              <dd className="text-right text-gray-200">{status.lockedVaults}</dd>
 
-              <dt className="text-zinc-500">Released</dt>
-              <dd className="text-right text-zinc-200">{status.releasedVaults}</dd>
+              <dt className="text-gray-500">Released</dt>
+              <dd className="text-right text-gray-200">{status.releasedVaults}</dd>
 
-              <dt className="text-zinc-500">TVL</dt>
-              <dd className="text-right text-zinc-200">{status.tvlEth} ETH</dd>
+              <dt className="text-gray-500">TVL</dt>
+              <dd className="text-right text-indigo-400">{status.tvlEth} ETH</dd>
             </dl>
           </aside>
         </header>
 
-        <section id="developers" className="mb-16 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8">
+        <section id="developers" className="mb-16 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
           <h2 className="mb-6 text-2xl font-semibold tracking-tight">Developers</h2>
-          <p className="mb-8 max-w-3xl text-zinc-400">
+          <p className="mb-8 max-w-3xl text-gray-400">
             Integrate PayAG by funding a vault, producing a deterministic proof hash, then
             triggering verification through the server-side route. Proof-of-Task secures funds via
             a cryptographic handshake: the contract computes keccak256(proofString) and releases
@@ -151,10 +151,10 @@ export default async function LandingPage() {
 
           <div className="grid gap-6 md:grid-cols-3">
             <article>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-gray-400">
                 createVault
               </h3>
-              <pre className="overflow-x-auto rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-300">
+              <pre className="overflow-x-auto rounded-xl border border-gray-800 bg-black p-4 text-xs text-gray-300">
 {`await writeContractAsync({
   address: FACTORY_ADDRESS,
   abi: FACTORY_ABI,
@@ -166,10 +166,10 @@ export default async function LandingPage() {
             </article>
 
             <article>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-gray-400">
                 generateProofHash
               </h3>
-              <pre className="overflow-x-auto rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-300">
+              <pre className="overflow-x-auto rounded-xl border border-gray-800 bg-black p-4 text-xs text-gray-300">
 {`import { generateProofHash } from '@/lib/payagProof';
 
 const proof = 'file:sha256:...';
@@ -178,10 +178,10 @@ const taskHash = generateProofHash(proof);`}
             </article>
 
             <article>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-gray-400">
                 /api/verify
               </h3>
-              <pre className="overflow-x-auto rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-300">
+              <pre className="overflow-x-auto rounded-xl border border-gray-800 bg-black p-4 text-xs text-gray-300">
 {`await fetch('/api/verify', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -196,22 +196,22 @@ const taskHash = generateProofHash(proof);`}
           </div>
         </section>
 
-        <section id="use-cases" className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8">
+        <section id="use-cases" className="rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
           <h2 className="mb-6 text-2xl font-semibold tracking-tight">Use Cases</h2>
-          <h3 className="mb-3 text-lg font-medium text-zinc-100">Digital Service Provisioning</h3>
-          <p className="mb-6 max-w-3xl text-zinc-400">
+          <h3 className="mb-3 text-lg font-medium text-white">Digital Service Provisioning</h3>
+          <p className="mb-6 max-w-3xl text-gray-400">
             Client and provider coordinate through deterministic proofs. Payment is unlocked only
             when the provider supplies cryptographic evidence matching the agreed milestone.
           </p>
 
-          <ol className="grid gap-3 text-sm text-zinc-300 md:grid-cols-4">
-            <li className="rounded-lg border border-zinc-800 bg-black p-4">1. Client locks funds in PayAG vault</li>
-            <li className="rounded-lg border border-zinc-800 bg-black p-4">2. Provider completes deliverable or API output</li>
-            <li className="rounded-lg border border-zinc-800 bg-black p-4">3. Deterministic proof hash is submitted</li>
-            <li className="rounded-lg border border-zinc-800 bg-black p-4">4. Matching proof releases payment automatically</li>
+          <ol className="grid gap-3 text-sm text-gray-300 md:grid-cols-4">
+            <li className="rounded-lg border border-gray-800 bg-black p-4">1. Client locks funds in PayAG vault</li>
+            <li className="rounded-lg border border-gray-800 bg-black p-4">2. Provider completes deliverable or API output</li>
+            <li className="rounded-lg border border-gray-800 bg-black p-4">3. Deterministic proof hash is submitted</li>
+            <li className="rounded-lg border border-gray-800 bg-black p-4">4. Matching proof releases payment automatically</li>
           </ol>
 
-          <div className="mt-6 rounded-xl border border-zinc-800 bg-black p-5 text-sm text-zinc-300">
+          <div className="mt-6 rounded-xl border border-gray-800 bg-black p-5 text-sm text-gray-300">
             Total protection against non-payment for creators, guaranteed delivery assurances for
             buyers, and no subjective arbitration at settlement time.
           </div>

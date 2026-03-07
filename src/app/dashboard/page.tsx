@@ -242,7 +242,7 @@ export default function DashboardPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="text-2xl font-bold tracking-tighter">
             <Link href="/" className="hover:opacity-80">
-              PayAG<span className="text-indigo-500">.ai</span>
+              Pay<span className="text-indigo-500">AG</span>
             </Link>
           </div>
           <div className="flex items-center gap-4">
@@ -344,3 +344,4 @@ export default function DashboardPage() {
     </main>
   );
 }
+
