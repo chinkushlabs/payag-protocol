@@ -27,6 +27,19 @@ type RegistryListing = {
   price: string;
 };
 
+type JobItem = {
+  id: string;
+  vaultAddress: `0x${string}`;
+  buyer: `0x${string}`;
+  workerAddress: `0x${string}`;
+  service: string;
+  requirements: string;
+  amount: string;
+  currency: string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'VERIFIED' | 'SETTLED';
+  createdAt: string;
+};
+
 const FACTORY_ADDRESS =
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}` | undefined) ??
   '0x4c3825FA6DDfd2eaCE6fa9191de3fb3c204bAc3c';
@@ -90,7 +103,7 @@ function getStageState(index: number, completed: number, inFlight: boolean): 'Pe
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
 
@@ -104,12 +117,16 @@ function DashboardContent() {
   const [serviceOptions, setServiceOptions] = useState<string[]>([]);
   const [currencyOptions, setCurrencyOptions] = useState<string[]>([]);
 
+  const [jobs, setJobs] = useState<JobItem[]>([]);
+  const [jobFilterWorker, setJobFilterWorker] = useState('');
+
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [autoVerifyInFlight, setAutoVerifyInFlight] = useState<Record<string, boolean>>({});
   const [verifyTxByVault, setVerifyTxByVault] = useState<Record<string, `0x${string}`>>({});
   const [createTxByVault, setCreateTxByVault] = useState<Record<string, `0x${string}`>>({});
   const [demoMode, setDemoMode] = useState(true);
+  const [priceLocked, setPriceLocked] = useState(false);
 
   const { data: allVaults, refetch } = useReadContract({
     address: FACTORY_ADDRESS,
@@ -125,10 +142,8 @@ function DashboardContent() {
         const rows = (Array.isArray(json?.listings) ? json.listings : []) as RegistryListing[];
         setListings(rows);
 
-        const services = Array.from(new Set(rows.map((row) => row.service).filter(Boolean)));
+        setServiceOptions(Array.from(new Set(rows.map((row) => row.service).filter(Boolean))));
         const currencies = Array.from(new Set(rows.map((row) => row.currency).filter(Boolean)));
-
-        setServiceOptions(services);
         setCurrencyOptions(currencies.length > 0 ? currencies : ['ETH']);
       } catch {
         setServiceOptions([]);
@@ -147,21 +162,18 @@ function DashboardContent() {
 
     if (qWorker) setWorkerAddress(qWorker);
     if (qService) setServiceName(qService);
-    if (qPrice) setBudgetEth(qPrice);
+    if (qPrice) {
+      setBudgetEth(qPrice);
+      setPriceLocked(true);
+    }
     if (qCurrency) setListingCurrency(qCurrency);
-  }, [searchParams]);
 
-  useEffect(() => {
-    if (!serviceName && serviceOptions.length > 0 && searchParams.get('service')) {
-      setServiceName(searchParams.get('service') ?? '');
+    if (qWorker) {
+      setJobFilterWorker(qWorker);
+    } else if (address) {
+      setJobFilterWorker(address);
     }
-  }, [serviceOptions, searchParams, serviceName]);
-
-  useEffect(() => {
-    if (!listingCurrency && currencyOptions.length === 1) {
-      setListingCurrency(currencyOptions[0]);
-    }
-  }, [currencyOptions, listingCurrency]);
+  }, [searchParams, address]);
 
   useEffect(() => {
     if (!serviceName) return;
@@ -172,6 +184,35 @@ function DashboardContent() {
     if (!budgetEth) setBudgetEth(match.price);
     if (!listingCurrency) setListingCurrency(match.currency);
   }, [serviceName, listings, workerAddress, budgetEth, listingCurrency]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadJobs = async () => {
+      if (!jobFilterWorker || !/^0x[a-fA-F0-9]{40}$/.test(jobFilterWorker)) {
+        if (mounted) setJobs([]);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/jobs?worker=${encodeURIComponent(jobFilterWorker)}`, {
+          cache: 'no-store',
+        });
+        const json = await res.json();
+        if (!mounted) return;
+        setJobs(Array.isArray(json?.jobs) ? json.jobs : []);
+      } catch {
+        if (mounted) setJobs([]);
+      }
+    };
+
+    loadJobs();
+    const timer = setInterval(loadJobs, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [jobFilterWorker]);
 
   const computedProofPayload = useMemo(
     () =>
@@ -200,26 +241,10 @@ function DashboardContent() {
 
           try {
             const [buyerResult, releasedResult, completedRaw, totalRaw] = await Promise.all([
-              publicClient.readContract({
-                address: vaultAddress,
-                abi: VAULT_ABI,
-                functionName: 'buyer',
-              }) as Promise<`0x${string}`>,
-              publicClient.readContract({
-                address: vaultAddress,
-                abi: VAULT_ABI,
-                functionName: 'isReleased',
-              }) as Promise<boolean>,
-              publicClient.readContract({
-                address: vaultAddress,
-                abi: VAULT_ABI,
-                functionName: 'completedMilestones',
-              }) as Promise<bigint>,
-              publicClient.readContract({
-                address: vaultAddress,
-                abi: VAULT_ABI,
-                functionName: 'milestonesCount',
-              }) as Promise<bigint>,
+              publicClient.readContract({ address: vaultAddress, abi: VAULT_ABI, functionName: 'buyer' }) as Promise<`0x${string}`>,
+              publicClient.readContract({ address: vaultAddress, abi: VAULT_ABI, functionName: 'isReleased' }) as Promise<boolean>,
+              publicClient.readContract({ address: vaultAddress, abi: VAULT_ABI, functionName: 'completedMilestones' }) as Promise<bigint>,
+              publicClient.readContract({ address: vaultAddress, abi: VAULT_ABI, functionName: 'milestonesCount' }) as Promise<bigint>,
             ]);
 
             buyer = buyerResult;
@@ -261,16 +286,13 @@ function DashboardContent() {
   const settledCount = escrows.filter((e) => e.status === 'RELEASED').length;
 
   const adjustBudget = (delta: number) => {
+    if (priceLocked) return;
     const current = Number.parseFloat(budgetEth || '0');
     const next = Math.max(0, current + delta);
     setBudgetEth(next.toFixed(3));
   };
 
-  const triggerAutomatedVerify = async (
-    vaultAddress: `0x${string}`,
-    proofString: string,
-    milestoneIndex: number
-  ) => {
+  const triggerAutomatedVerify = async (vaultAddress: `0x${string}`, proofString: string, milestoneIndex: number) => {
     try {
       setAutoVerifyInFlight((prev) => ({ ...prev, [vaultAddress.toLowerCase()]: true }));
       setToast('Worker agent submitting proof...');
@@ -287,38 +309,23 @@ function DashboardContent() {
       }
 
       const txHash = payload?.txHash as `0x${string}` | undefined;
-      if (txHash) {
-        setVerifyTxByVault((prev) => ({ ...prev, [vaultAddress.toLowerCase()]: txHash }));
-      }
+      if (txHash) setVerifyTxByVault((prev) => ({ ...prev, [vaultAddress.toLowerCase()]: txHash }));
 
       await refetch();
 
       const [completedRaw, totalRaw] = (await Promise.all([
-        publicClient!.readContract({
-          address: vaultAddress,
-          abi: VAULT_ABI,
-          functionName: 'completedMilestones',
-        }),
-        publicClient!.readContract({
-          address: vaultAddress,
-          abi: VAULT_ABI,
-          functionName: 'milestonesCount',
-        }),
+        publicClient!.readContract({ address: vaultAddress, abi: VAULT_ABI, functionName: 'completedMilestones' }),
+        publicClient!.readContract({ address: vaultAddress, abi: VAULT_ABI, functionName: 'milestonesCount' }),
       ])) as [bigint, bigint];
-
-      const refreshed = {
-        completed: Number(completedRaw),
-        total: Number(totalRaw),
-      };
 
       setEscrows((prev) =>
         prev.map((escrow) =>
           escrow.fullHash.toLowerCase() === vaultAddress.toLowerCase()
             ? {
                 ...escrow,
-                milestonesCompleted: refreshed.completed,
-                milestonesTotal: refreshed.total,
-                status: refreshed.completed >= refreshed.total ? 'RELEASED' : 'LOCKED',
+                milestonesCompleted: Number(completedRaw),
+                milestonesTotal: Number(totalRaw),
+                status: Number(completedRaw) >= Number(totalRaw) ? 'RELEASED' : 'LOCKED',
               }
             : escrow
         )
@@ -336,6 +343,7 @@ function DashboardContent() {
 
   const createVaultOnly = async (): Promise<`0x${string}`> => {
     if (!isConnected) throw new Error('Please connect your wallet first');
+    if (!address) throw new Error('Buyer wallet unavailable');
     if (!publicClient) throw new Error('Public client unavailable');
 
     const requirements = taskInput.trim();
@@ -345,8 +353,7 @@ function DashboardContent() {
     if (!budgetEth.trim() || Number.parseFloat(budgetEth) <= 0) throw new Error('Enter a valid amount');
     if (!/^0x[a-fA-F0-9]{40}$/.test(workerAddress.trim())) throw new Error('Worker address invalid');
 
-    const proofPayload = computedProofPayload;
-    const taskHash = generateProofHash(proofPayload);
+    const taskHash = generateProofHash(computedProofPayload);
 
     const txHash = await writeContractAsync({
       address: FACTORY_ADDRESS,
@@ -368,8 +375,22 @@ function DashboardContent() {
 
     const latestVault = vaults[vaults.length - 1];
     setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
-    await refetch();
 
+    await fetch('/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vaultAddress: latestVault,
+        buyer: address,
+        workerAddress: workerAddress.trim(),
+        service: serviceName.trim(),
+        requirements,
+        amount: budgetEth.trim(),
+        currency: listingCurrency.trim(),
+      }),
+    });
+
+    await refetch();
     return latestVault;
   };
 
@@ -473,7 +494,8 @@ function DashboardContent() {
                 <button
                   type="button"
                   onClick={() => adjustBudget(-0.001)}
-                  className="rounded border border-gray-700 px-3 py-3 text-sm text-gray-200 hover:border-gray-500"
+                  disabled={priceLocked}
+                  className="rounded border border-gray-700 px-3 py-3 text-sm text-gray-200 hover:border-gray-500 disabled:opacity-40"
                 >
                   -
                 </button>
@@ -481,16 +503,19 @@ function DashboardContent() {
                   value={budgetEth}
                   onChange={(e) => setBudgetEth(e.target.value)}
                   placeholder="0.010"
+                  readOnly={priceLocked}
                   className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
                 />
                 <button
                   type="button"
                   onClick={() => adjustBudget(0.001)}
-                  className="rounded border border-gray-700 px-3 py-3 text-sm text-gray-200 hover:border-gray-500"
+                  disabled={priceLocked}
+                  className="rounded border border-gray-700 px-3 py-3 text-sm text-gray-200 hover:border-gray-500 disabled:opacity-40"
                 >
                   +
                 </button>
               </div>
+              {priceLocked && <p className="mt-1 text-[11px] text-gray-500">Fixed from marketplace listing.</p>}
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Listing Currency</label>
@@ -550,6 +575,48 @@ function DashboardContent() {
               />
               Demo Mode Auto Verify
             </label>
+          </div>
+        </div>
+
+        <div className="mb-8 rounded-xl border border-gray-800 bg-[#0d0d14] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">My Incoming Jobs</h2>
+            <span className="text-xs uppercase tracking-[0.14em] text-gray-500">refresh: 10s</span>
+          </div>
+          <div className="mb-3">
+            <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-gray-500">Worker Inbox Address</label>
+            <input
+              value={jobFilterWorker}
+              onChange={(e) => setJobFilterWorker(e.target.value)}
+              placeholder="0x..."
+              className="w-full rounded-lg border border-gray-700 bg-black/40 px-4 py-3 text-white"
+            />
+          </div>
+          <div className="space-y-2">
+            {jobs.length === 0 ? (
+              <div className="rounded border border-gray-800 bg-black p-3 text-sm text-gray-500">No incoming jobs yet.</div>
+            ) : (
+              jobs.map((job) => (
+                <div key={job.id} className="rounded border border-gray-800 bg-black p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-white">{job.service}</p>
+                    <span className="text-xs text-indigo-300">{job.amount} {job.currency}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs text-gray-400">{job.requirements}</p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>Buyer: {job.buyer.slice(0, 8)}...{job.buyer.slice(-6)}</span>
+                    <a
+                      href={`https://sepolia.basescan.org/address/${job.vaultAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-400 underline"
+                    >
+                      View Vault
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
