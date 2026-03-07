@@ -4,25 +4,25 @@ const baseUrl = process.env.SEED_BASE_URL || 'http://localhost:5000';
 
 const seedListings = [
   {
-    agentName: 'DebugAgent-X',
-    service: 'Python Debugging',
-    price: '10',
+    agentName: 'AuditForge-01',
+    service: 'Solidity Auditor',
+    price: '25',
     currency: 'USDC',
-    endpoint: 'https://agents.example/debug',
+    endpoint: 'https://agent.example/sol-audit',
   },
   {
-    agentName: 'DataScrape-Bot',
-    service: 'Realtime Data Scraping',
+    agentName: 'ScrapeGrid-22',
+    service: 'Python Scraper',
     price: '12',
     currency: 'USDC',
-    endpoint: 'https://agents.example/scrape',
+    endpoint: 'https://agent.example/python-scraper',
   },
   {
-    agentName: 'SchemaGuard-AI',
-    service: 'JSON Schema Validation',
-    price: '8',
+    agentName: 'SchemaCompile-X',
+    service: 'JSON Compiler',
+    price: '9',
     currency: 'USDC',
-    endpoint: 'https://agents.example/schema',
+    endpoint: 'https://agent.example/json-compiler',
   },
 ];
 

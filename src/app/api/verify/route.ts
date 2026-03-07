@@ -1,11 +1,29 @@
 import { NextResponse } from 'next/server';
-import { isHex } from 'viem';
+import { isAddress, isHex } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import {
   createWorkerPublicClient,
   createWorkerWalletClient,
   submitProofToChain,
 } from '@/lib/payagWorkerAgent';
+
+const TREASURY_WALLET = '0x82343e2fed61fca6d2ead64689ff406e29fea7c8' as const;
+const PROTOCOL_FEE_BPS = 350;
+const BPS_DENOMINATOR = 10000;
+
+const VAULT_READ_ABI = [
+  {
+    inputs: [{ internalType: 'uint256', name: 'milestoneIndex', type: 'uint256' }],
+    name: 'getMilestone',
+    outputs: [
+      { internalType: 'bytes32', name: 'proofHash', type: 'bytes32' },
+      { internalType: 'uint256', name: 'payoutAmount', type: 'uint256' },
+      { internalType: 'bool', name: 'released', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
 
 export async function POST(request: Request) {
   try {
@@ -31,6 +49,10 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!isAddress(TREASURY_WALLET)) {
+      return NextResponse.json({ error: 'Treasury wallet misconfigured' }, { status: 500 });
+    }
+
     const walletClient = createWorkerWalletClient({
       privateKey,
       rpcUrl,
@@ -38,6 +60,17 @@ export async function POST(request: Request) {
     });
 
     const publicClient = createWorkerPublicClient({ rpcUrl, chain: baseSepolia });
+
+    const milestone = (await publicClient.readContract({
+      address: vaultAddress,
+      abi: VAULT_READ_ABI,
+      functionName: 'getMilestone',
+      args: [BigInt(milestoneIndex)],
+    })) as readonly [`0x${string}`, bigint, boolean];
+
+    const grossPayoutWei = milestone[1];
+    const protocolFeeWei = (grossPayoutWei * BigInt(PROTOCOL_FEE_BPS)) / BigInt(BPS_DENOMINATOR);
+    const workerPayoutWei = grossPayoutWei - protocolFeeWei;
 
     const txHash = await submitProofToChain({
       walletClient,
@@ -53,6 +86,11 @@ export async function POST(request: Request) {
       txHash,
       blockNumber: receipt.blockNumber.toString(),
       milestoneIndex,
+      protocolFeeBps: PROTOCOL_FEE_BPS,
+      treasuryWallet: TREASURY_WALLET,
+      grossPayoutWei: grossPayoutWei.toString(),
+      protocolFeeWei: protocolFeeWei.toString(),
+      workerPayoutWei: workerPayoutWei.toString(),
     });
   } catch (error) {
     return NextResponse.json(

@@ -40,13 +40,19 @@ type ProtocolStatus = {
   tvlEth: string;
 };
 
-const SNIPPET_CREATE_ETH = `await writeContractAsync({
+const SNIPPET_CREATE_ETH = `const grossMilestone = parseEther('0.01');
+
+await writeContractAsync({
   address: FACTORY_ADDRESS,
   abi: FACTORY_ABI,
   functionName: 'createVault',
   args: [workerAddress, taskHash],
-  value: parseEther('0.01'),
-});`;
+  value: grossMilestone,
+});
+
+// on successful verify:
+// worker receives 96.5%
+// treasury receives 3.5%`; 
 
 const SNIPPET_CREATE_ERC20 = `// 1) Approve token transfer to factory
 await writeContractAsync({
@@ -62,7 +68,20 @@ await writeContractAsync({
   abi: FACTORY_TOKEN_ABI,
   functionName: 'createVaultERC20',
   args: [workerAddress, taskHash, USDC_ADDRESS, parseUnits('10', 6)],
-});`;
+});
+
+// net payout per successful milestone = gross * 0.965`; 
+
+const SNIPPET_VERIFY_PAYOUT = `const response = await fetch('/api/verify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ vaultAddress, milestoneIndex: 0, proofString }),
+});
+
+const result = await response.json();
+console.log(result.workerPayoutWei);   // 96.5%
+console.log(result.protocolFeeWei);    // 3.5%
+console.log(result.treasuryWallet);`; 
 
 const SNIPPET_HASH = `import { generateProofHash } from '@/lib/payagProof';
 
@@ -207,17 +226,28 @@ export default async function LandingPage() {
           <ProtocolStatusPanel initial={status} />
         </header>
 
+        <section className="mb-8 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
+          <h2 className="mb-3 text-2xl font-semibold tracking-tight">Protocol Fees</h2>
+          <p className="text-gray-300">
+            PayAG facilitates autonomous trust with a flat 3.5% fee on successful settlements.
+          </p>
+          <p className="mt-2 text-sm text-gray-500">
+            Treasury: 0x82343e2fed61fca6d2ead64689ff406e29fea7c8
+          </p>
+        </section>
+
         <section id="developers" className="mb-16 rounded-2xl border border-gray-800 bg-[#0d0d14] p-8">
           <h2 className="mb-6 text-2xl font-semibold tracking-tight">Developers</h2>
           <p className="mb-8 max-w-3xl text-gray-400">
             Integrate PayAG in three steps: fund escrow, generate deterministic proof hash, and
-            trigger server-side verification. Proof-of-Task computes keccak256(proofString)
-            on-chain and releases only on exact match with stored milestone proof hash.
+            trigger server-side verification. Each successful milestone pays 96.5% to the worker
+            and 3.5% to protocol treasury.
           </p>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             <CopyCodeBlock title="createVault (ETH)" code={SNIPPET_CREATE_ETH} />
             <CopyCodeBlock title="createVault (USDC / ERC-20)" code={SNIPPET_CREATE_ERC20} />
+            <CopyCodeBlock title="verify + payout fields" code={SNIPPET_VERIFY_PAYOUT} />
             <CopyCodeBlock title="generateProofHash" code={SNIPPET_HASH} />
           </div>
         </section>

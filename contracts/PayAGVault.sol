@@ -8,6 +8,10 @@ contract PayAGVault {
         bool isReleased;
     }
 
+    uint256 public constant PROTOCOL_FEE_BPS = 350;
+    uint256 public constant BPS_DENOMINATOR = 10000;
+    address payable public constant TREASURY = payable(0x82343e2fed61fca6d2ead64689ff406e29fea7c8);
+
     address payable public immutable buyer;
     address payable public immutable seller;
     bool public isReleased;
@@ -23,7 +27,10 @@ contract PayAGVault {
         address indexed vault,
         uint256 indexed milestoneIndex,
         bytes32 indexed proofHash,
-        uint256 amount,
+        uint256 grossAmount,
+        uint256 workerPayout,
+        uint256 protocolFee,
+        address treasury,
         uint256 completedMilestones,
         uint256 totalMilestones
     );
@@ -114,13 +121,22 @@ contract PayAGVault {
             isReleased = true;
         }
 
-        seller.transfer(milestone.payoutAmount);
+        uint256 protocolFee = (milestone.payoutAmount * PROTOCOL_FEE_BPS) / BPS_DENOMINATOR;
+        uint256 workerPayout = milestone.payoutAmount - protocolFee;
+
+        if (protocolFee > 0) {
+            TREASURY.transfer(protocolFee);
+        }
+        seller.transfer(workerPayout);
 
         emit MilestoneReleased(
             address(this),
             milestoneIndex,
             milestone.proofHash,
             milestone.payoutAmount,
+            workerPayout,
+            protocolFee,
+            TREASURY,
             completedMilestones,
             milestones.length
         );
