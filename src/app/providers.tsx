@@ -1,19 +1,18 @@
 'use client';
 
 import * as React from 'react';
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { WagmiProvider, createConfig, http } from 'wagmi';
-import { injected } from 'wagmi/connectors';
+import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import '@rainbow-me/rainbowkit/styles.css';
 
-const config = createConfig({
+const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || '';
+
+const config = getDefaultConfig({
+  appName: 'PayAG',
+  projectId: reownProjectId,
   chains: [baseSepolia],
-  connectors: [injected()],
-  transports: {
-    [baseSepolia.id]: http(),
-  },
   ssr: true,
 });
 

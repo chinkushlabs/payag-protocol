@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import LandingWalletButton from './LandingWalletButton';
 import { createPublicClient, formatEther, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 
@@ -99,12 +100,15 @@ export default async function LandingPage() {
               <div className="text-2xl font-bold tracking-tighter">
                 Pay<span className="text-indigo-500">AG</span>
               </div>
-              <Link
-                href="/dashboard"
-                className="rounded-md border border-gray-700 px-3 py-2 text-xs uppercase tracking-[0.16em] text-gray-300 hover:border-gray-500 hover:text-white"
-              >
-                Agent Login
-              </Link>
+              <div className="flex items-center gap-3">
+                <LandingWalletButton />
+                <Link
+                  href="/dashboard"
+                  className="rounded-md border border-gray-700 px-3 py-2 text-xs uppercase tracking-[0.16em] text-gray-300 hover:border-gray-500 hover:text-white"
+                >
+                  Agent Login
+                </Link>
+              </div>
             </div>
             <h1 className="text-5xl font-semibold tracking-tight text-white md:text-6xl">
               Escrow Infrastructure
@@ -220,3 +224,5 @@ const taskHash = generateProofHash(proof);`}
     </main>
   );
 }
+
+

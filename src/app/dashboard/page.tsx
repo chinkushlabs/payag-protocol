@@ -6,7 +6,6 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from 'wagmi';
 import { parseEther } from 'viem';
 import { generateProofHash } from '@/lib/payagProof';
-import { getLatestVaultAddress, getVaultMilestoneProgress } from '@/lib/payagWorkerAgent';
 
 type EscrowItem = {
   escrowId: string;
@@ -58,6 +57,20 @@ const VAULT_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [],
+    name: 'completedMilestones',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'milestonesCount',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
 function getStageState(index: number, completed: number, inFlight: boolean): 'Pending' | 'Verifying' | 'Released' {
@@ -76,6 +89,7 @@ export default function DashboardPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [autoVerifyInFlight, setAutoVerifyInFlight] = useState<Record<string, boolean>>({});
   const [verifyTxByVault, setVerifyTxByVault] = useState<Record<string, `0x${string}`>>({});
+  const [createTxByVault, setCreateTxByVault] = useState<Record<string, `0x${string}`>>({});
 
   const { data: allVaults, refetch } = useReadContract({
     address: FACTORY_ADDRESS,
@@ -97,7 +111,7 @@ export default function DashboardPage() {
           let milestonesTotal = 1;
 
           try {
-            const [buyerResult, releasedResult, milestoneProgress] = await Promise.all([
+            const [buyerResult, releasedResult, completedRaw, totalRaw] = await Promise.all([
               publicClient.readContract({
                 address: vaultAddress,
                 abi: VAULT_ABI,
@@ -108,13 +122,22 @@ export default function DashboardPage() {
                 abi: VAULT_ABI,
                 functionName: 'isReleased',
               }) as Promise<boolean>,
-              getVaultMilestoneProgress({ publicClient, vaultAddress }),
+              publicClient.readContract({
+                address: vaultAddress,
+                abi: VAULT_ABI,
+                functionName: 'completedMilestones',
+              }) as Promise<bigint>,
+              publicClient.readContract({
+                address: vaultAddress,
+                abi: VAULT_ABI,
+                functionName: 'milestonesCount',
+              }) as Promise<bigint>,
             ]);
 
             buyer = buyerResult;
             isReleased = releasedResult;
-            milestonesCompleted = milestoneProgress.completed;
-            milestonesTotal = milestoneProgress.total;
+            milestonesCompleted = Number(completedRaw);
+            milestonesTotal = Number(totalRaw);
           } catch {
             buyer = null;
             isReleased = false;
@@ -175,7 +198,24 @@ export default function DashboardPage() {
       }
 
       await refetch();
-      const refreshed = await getVaultMilestoneProgress({ publicClient: publicClient!, vaultAddress });
+
+      const [completedRaw, totalRaw] = (await Promise.all([
+        publicClient!.readContract({
+          address: vaultAddress,
+          abi: VAULT_ABI,
+          functionName: 'completedMilestones',
+        }),
+        publicClient!.readContract({
+          address: vaultAddress,
+          abi: VAULT_ABI,
+          functionName: 'milestonesCount',
+        }),
+      ])) as [bigint, bigint];
+
+      const refreshed = {
+        completed: Number(completedRaw),
+        total: Number(totalRaw),
+      };
 
       setEscrows((prev) =>
         prev.map((escrow) =>
@@ -234,10 +274,17 @@ export default function DashboardPage() {
       });
 
       await publicClient.waitForTransactionReceipt({ hash: txHash });
-      const latestVault = await getLatestVaultAddress({
-        publicClient,
-        factoryAddress: FACTORY_ADDRESS,
-      });
+
+      const vaults = (await publicClient.readContract({
+        address: FACTORY_ADDRESS,
+        abi: FACTORY_ABI,
+        functionName: 'getVaults',
+      })) as `0x${string}`[];
+
+      if (vaults.length === 0) throw new Error('No vaults found after creation');
+
+      const latestVault = vaults[vaults.length - 1];
+      setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
 
       await refetch();
       await triggerAutomatedVerify(latestVault, taskDescription, 0);
@@ -313,6 +360,7 @@ export default function DashboardPage() {
                     ? Math.round((escrow.milestonesCompleted / escrow.milestonesTotal) * 100)
                     : 0;
                 const verifyTx = verifyTxByVault[escrow.fullHash.toLowerCase()];
+                const createTx = createTxByVault[escrow.fullHash.toLowerCase()];
 
                 return (
                   <tr key={escrow.fullHash}>
@@ -370,16 +418,28 @@ export default function DashboardPage() {
                           })}
                         </div>
 
-                        {verifyTx && (
-                          <a
-                            href={`https://sepolia.base.org/tx/${verifyTx}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] uppercase tracking-wide text-indigo-400 underline hover:text-indigo-300"
-                          >
-                            View on Explorer
-                          </a>
-                        )}
+                        <div className="flex gap-3">
+                          {createTx && (
+                            <a
+                              href={`https://sepolia.basescan.org/tx/${createTx}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] uppercase tracking-wide text-indigo-400 underline hover:text-indigo-300"
+                            >
+                              View on BaseScan (Create)
+                            </a>
+                          )}
+                          {verifyTx && (
+                            <a
+                              href={`https://sepolia.basescan.org/tx/${verifyTx}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] uppercase tracking-wide text-indigo-400 underline hover:text-indigo-300"
+                            >
+                              View on BaseScan (Verify)
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-mono text-gray-500">
