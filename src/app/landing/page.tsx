@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createPublicClient, formatEther, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 
@@ -94,9 +95,17 @@ export default async function LandingPage() {
       <div className="mx-auto max-w-6xl px-6 py-14">
         <header className="mb-14 grid gap-8 md:grid-cols-[1.5fr_1fr]">
           <div>
-            <p className="mb-4 inline-block rounded-full border border-zinc-700 px-3 py-1 text-xs uppercase tracking-[0.2em] text-zinc-400">
-              PayAG Protocol
-            </p>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <p className="inline-block rounded-full border border-zinc-700 px-3 py-1 text-xs uppercase tracking-[0.2em] text-zinc-400">
+                PayAG Protocol
+              </p>
+              <Link
+                href="/dashboard"
+                className="rounded-md border border-zinc-700 px-3 py-2 text-xs uppercase tracking-[0.16em] text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+              >
+                Agent Login
+              </Link>
+            </div>
             <h1 className="text-5xl font-semibold tracking-tight text-zinc-100 md:text-6xl">
               Escrow Infrastructure
               <br />
@@ -211,6 +220,3 @@ const taskHash = generateProofHash(proof);`}
     </main>
   );
 }
-
-
-
