@@ -7,7 +7,9 @@ import { WagmiProvider } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import '@rainbow-me/rainbowkit/styles.css';
 
-const reownProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || '';
+const FALLBACK_REOWN_PROJECT_ID = '00000000000000000000000000000000';
+const reownProjectId =
+  process.env.NEXT_PUBLIC_REOWN_PROJECT_ID?.trim() || FALLBACK_REOWN_PROJECT_ID;
 
 const config = getDefaultConfig({
   appName: 'PayAG',
