@@ -60,6 +60,12 @@ const VAULT_ABI = [
   },
 ] as const;
 
+function getStageState(index: number, completed: number, inFlight: boolean): 'Pending' | 'Verifying' | 'Released' {
+  if (index < completed) return 'Released';
+  if (index === completed && inFlight) return 'Verifying';
+  return 'Pending';
+}
+
 export default function DashboardPage() {
   const { isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
@@ -69,6 +75,7 @@ export default function DashboardPage() {
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [autoVerifyInFlight, setAutoVerifyInFlight] = useState<Record<string, boolean>>({});
+  const [verifyTxByVault, setVerifyTxByVault] = useState<Record<string, `0x${string}`>>({});
 
   const { data: allVaults, refetch } = useReadContract({
     address: FACTORY_ADDRESS,
@@ -160,6 +167,11 @@ export default function DashboardPage() {
       const payload = await response.json();
       if (!response.ok || payload?.status !== 'success') {
         throw new Error(payload?.error ?? 'Proof verification transaction failed');
+      }
+
+      const txHash = payload?.txHash as `0x${string}` | undefined;
+      if (txHash) {
+        setVerifyTxByVault((prev) => ({ ...prev, [vaultAddress.toLowerCase()]: txHash }));
       }
 
       await refetch();
@@ -296,6 +308,12 @@ export default function DashboardPage() {
             <tbody className="divide-y divide-gray-800">
               {escrows.map((escrow) => {
                 const inFlight = autoVerifyInFlight[escrow.fullHash.toLowerCase()] ?? false;
+                const progressPercent =
+                  escrow.milestonesTotal > 0
+                    ? Math.round((escrow.milestonesCompleted / escrow.milestonesTotal) * 100)
+                    : 0;
+                const verifyTx = verifyTxByVault[escrow.fullHash.toLowerCase()];
+
                 return (
                   <tr key={escrow.fullHash}>
                     <td className="px-6 py-4 font-mono text-indigo-400">
@@ -314,14 +332,53 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-2">
                         <span className="text-xs text-gray-300">
                           {escrow.milestonesCompleted}/{escrow.milestonesTotal} Milestones Complete
                         </span>
-                        {escrow.status === 'LOCKED' && (
-                          <span className="text-[10px] uppercase text-gray-500">
-                            {inFlight ? 'Worker Verifying...' : 'Auto Verification Pending'}
-                          </span>
+
+                        <div className="h-1.5 w-full overflow-hidden rounded bg-gray-800">
+                          <div
+                            className="h-full bg-indigo-500 transition-all"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap gap-1">
+                          {Array.from({ length: escrow.milestonesTotal }).map((_, idx) => {
+                            const stageState = getStageState(
+                              idx,
+                              escrow.milestonesCompleted,
+                              inFlight && escrow.status === 'LOCKED'
+                            );
+
+                            const stageClass =
+                              stageState === 'Released'
+                                ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                                : stageState === 'Verifying'
+                                ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
+                                : 'border-gray-700 bg-transparent text-gray-500';
+
+                            return (
+                              <span
+                                key={`${escrow.fullHash}-${idx}`}
+                                className={`rounded border px-2 py-0.5 text-[10px] uppercase ${stageClass}`}
+                              >
+                                M{idx + 1}: {stageState}
+                              </span>
+                            );
+                          })}
+                        </div>
+
+                        {verifyTx && (
+                          <a
+                            href={`https://sepolia.base.org/tx/${verifyTx}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] uppercase tracking-wide text-indigo-400 underline hover:text-indigo-300"
+                          >
+                            View on Explorer
+                          </a>
                         )}
                       </div>
                     </td>
@@ -344,4 +401,3 @@ export default function DashboardPage() {
     </main>
   );
 }
-
