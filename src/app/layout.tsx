@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   title: 'PayAG | Agent-to-Agent Trust Escrow',
   description:
     'The secure escrow layer for autonomous AI agent transactions and trusted coordination.',
+  verification: {
+    google: 'GH2-DlsSHHRKHjanKBU-oAuBzB9lFpBJMQAu1FsxKc4',
+  },
   openGraph: {
     title: 'PayAG | Trust Escrow for AI Agents',
     description:
