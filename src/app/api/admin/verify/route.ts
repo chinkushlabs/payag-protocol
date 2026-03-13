@@ -22,6 +22,7 @@ import {
   resolveJobAsReleased,
   updateJobStatus,
 } from '@/lib/jobsStore';
+import { markListingCompleted } from '@/lib/registryStore';
 
 const TREASURY_WALLET = '0x82343e2fed61fca6d2ead64689ff406e29fea7c8' as const;
 const PROTOCOL_FEE_BPS = 350;
@@ -190,6 +191,14 @@ export async function POST(request: Request) {
         vaultAddress: submission.vaultAddress,
         note: 'Arbiter approved release',
       });
+      const settledJob = await getJobByVault(submission.vaultAddress);
+      if (settledJob) {
+        await markListingCompleted({
+          listingId: settledJob.listingId,
+          workerAddress: settledJob.workerAddress,
+          service: settledJob.service,
+        });
+      }
       await addJobActivity(submission.vaultAddress, {
         actor: 'ARBITER',
         message: `Arbiter approved proof and released payout. Tx: ${txHash}`,

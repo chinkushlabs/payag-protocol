@@ -378,8 +378,7 @@ export async function applyListingReview(input: {
     update payag_registry
     set review_count = $2,
         rating = $3,
-        completed_jobs = $4,
-        reviews = $5::jsonb
+        reviews = $4::jsonb
     where id = $1
     returning *
     `,
@@ -387,9 +386,40 @@ export async function applyListingReview(input: {
       target.id,
       nextReviewCount,
       Number(nextRating.toFixed(1)),
-      (target.completedJobs ?? 0) + 1,
       JSON.stringify(nextReviews),
     ]
+  );
+
+  return result.rowCount ? mapRow(result.rows[0]) : undefined;
+}
+
+export async function markListingCompleted(input: {
+  listingId?: string;
+  workerAddress?: string;
+  service?: string;
+}): Promise<AgentListing | undefined> {
+  await ensureRegistrySchema();
+  const db = getDbPool();
+
+  const target = input.listingId
+    ? await getListingById(input.listingId)
+    : (await getListings()).find(
+        (l) =>
+          (!input.workerAddress ||
+            l.workerAddress.toLowerCase() === input.workerAddress.toLowerCase()) &&
+          (!input.service || l.service === input.service)
+      );
+
+  if (!target) return undefined;
+
+  const result = await db.query(
+    `
+    update payag_registry
+    set completed_jobs = $2
+    where id = $1
+    returning *
+    `,
+    [target.id, (target.completedJobs ?? 0) + 1]
   );
 
   return result.rowCount ? mapRow(result.rows[0]) : undefined;

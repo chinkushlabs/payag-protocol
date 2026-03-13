@@ -35,6 +35,7 @@ type JobItem = {
   vaultAddress: `0x${string}`;
   buyer: `0x${string}`;
   workerAddress: `0x${string}`;
+  listingId?: string;
   service: string;
   requirements: string;
   amount: string;
@@ -200,6 +201,7 @@ function DashboardContent() {
   const [jobStatusByVault, setJobStatusByVault] = useState<Record<string, JobItem['status']>>({});
   const [activityByVault, setActivityByVault] = useState<Record<string, JobActivity[]>>({});
   const [jobByVault, setJobByVault] = useState<Record<string, JobItem>>({});
+  const [reviewedVaults, setReviewedVaults] = useState<Record<string, boolean>>({});
 
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
@@ -571,6 +573,48 @@ function DashboardContent() {
       setTimeout(() => setToast(null), 3000);
     }
   };
+
+  const handleLeaveReview = async (job: JobItem) => {
+    try {
+      if (!address) throw new Error('Connect buyer wallet first');
+      const ratingRaw = window.prompt('Rate this agent from 1 to 5 stars:', '5')?.trim() ?? '';
+      const rating = Number(ratingRaw);
+      if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+        throw new Error('Rating must be between 1 and 5');
+      }
+
+      const feedback =
+        window.prompt('Short feedback:', 'Agent was fast and output was clean')?.trim() ?? '';
+      if (!feedback) throw new Error('Feedback is required');
+
+      const response = await fetch('/api/registry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'REVIEW',
+          listingId: job.listingId,
+          workerAddress: job.workerAddress,
+          service: job.service,
+          reviewer: address,
+          rating,
+          feedback,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || payload?.status !== 'REVIEW_SAVED') {
+        throw new Error(payload?.error ?? 'Failed to save review');
+      }
+
+      setReviewedVaults((prev) => ({ ...prev, [job.vaultAddress.toLowerCase()]: true }));
+      setToast('Review saved');
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Review failed');
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
   const createVaultOnly = async (): Promise<`0x${string}`> => {
     if (!isConnected) throw new Error('Please connect your wallet first');
     if (!address) throw new Error('Buyer wallet unavailable');
@@ -864,6 +908,14 @@ function DashboardContent() {
                 const progressPercent = escrow.milestonesTotal > 0 ? Math.round((escrow.milestonesCompleted / escrow.milestonesTotal) * 100) : 0;
                 const createTx = createTxByVault[escrow.fullHash.toLowerCase()];
                 const arbiterStatus = jobStatusByVault[escrow.fullHash.toLowerCase()];
+                const linkedJob = jobByVault[escrow.fullHash.toLowerCase()];
+                const canReview =
+                  arbiterStatus === 'SETTLED' &&
+                  !!linkedJob &&
+                  !!address &&
+                  !!escrow.buyer &&
+                  address.toLowerCase() === escrow.buyer.toLowerCase() &&
+                  !reviewedVaults[escrow.fullHash.toLowerCase()];
 
                 return (
                   <tr key={escrow.fullHash}>
@@ -899,6 +951,19 @@ function DashboardContent() {
                             <button onClick={() => handleFileDispute(escrow.fullHash)} className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-red-200 hover:bg-red-500/20">
                               File Dispute (24h)
                             </button>
+                          )}
+                          {canReview && linkedJob && (
+                            <button
+                              onClick={() => handleLeaveReview(linkedJob)}
+                              className="rounded border border-green-500/40 bg-green-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-green-200 hover:bg-green-500/20"
+                            >
+                              Leave Review
+                            </button>
+                          )}
+                          {reviewedVaults[escrow.fullHash.toLowerCase()] && (
+                            <span className="rounded border border-green-500/30 bg-green-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-green-300">
+                              Review Saved
+                            </span>
                           )}
                         </div>
                       </div>
