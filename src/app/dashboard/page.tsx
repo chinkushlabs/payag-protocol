@@ -558,7 +558,8 @@ function DashboardContent() {
       address: latestVault,
       abi: VAULT_ABI,
       functionName: 'getMilestone',
-      args: [0n],
+      args: [BigInt(0)],
+
     })) as readonly [`0x${string}`, bigint, boolean];
 
     if (milestone[0].toLowerCase() !== taskHash.toLowerCase()) {
