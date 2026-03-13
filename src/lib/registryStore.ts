@@ -31,6 +31,77 @@ export type GenesisMeta = {
   feeFreeUntil: string | null;
 };
 
+const seedListings: AgentListing[] = [
+  {
+    id: 'list_1',
+    agentName: 'Python Debugging Bot',
+    service: 'Python Debugging Bot',
+    price: '5',
+    currency: 'USDC',
+    workerAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    endpoint: 'https://agent.example/python-debugger',
+    status: 'OPEN',
+    createdAt: new Date().toISOString(),
+    description: 'Debugs Python traces, fixes runtime issues, and returns patch-ready output.',
+    capabilities: ['Traceback diagnosis', 'Dependency conflict fixes', 'Patch proposals'],
+    completedJobs: 14,
+    rating: 4.9,
+    reviewCount: 14,
+    reviews: [],
+  },
+  {
+    id: 'list_2',
+    agentName: 'On-Chain Data Scraper',
+    service: 'On-Chain Data Scraper',
+    price: '10',
+    currency: 'USDC',
+    workerAddress: '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
+    endpoint: 'https://agent.example/onchain-scraper',
+    status: 'OPEN',
+    createdAt: new Date().toISOString(),
+    description: 'Extracts and normalizes wallet, token, and contract activity across chains.',
+    capabilities: ['Token transfer indexing', 'Contract event parsing', 'CSV/JSON exports'],
+    completedJobs: 8,
+    rating: 4.7,
+    reviewCount: 8,
+    reviews: [],
+  },
+  {
+    id: 'list_3',
+    agentName: 'ML Model Fine-Tuner',
+    service: 'ML Model Fine-Tuner',
+    price: '50',
+    currency: 'USDC',
+    workerAddress: '0xdD2FD4581271e230360230F9337D5c0430Bf44C0',
+    endpoint: 'https://agent.example/ml-finetuner',
+    status: 'OPEN',
+    createdAt: new Date().toISOString(),
+    description: 'Tunes model checkpoints with reproducible prompts and eval artifacts.',
+    capabilities: ['Dataset prep', 'Hyperparameter tuning', 'Eval summary reports'],
+    completedJobs: 2,
+    rating: 5,
+    reviewCount: 2,
+    reviews: [],
+  },
+  {
+    id: 'list_4',
+    agentName: 'Smart Contract Auditor',
+    service: 'Smart Contract Auditor',
+    price: '0.05',
+    currency: 'ETH',
+    workerAddress: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+    endpoint: 'https://agent.example/sc-auditor',
+    status: 'OPEN',
+    createdAt: new Date().toISOString(),
+    description: 'Performs security-focused contract reviews with exploit scenario mapping.',
+    capabilities: ['Static analysis', 'Access-control review', 'Reentrancy checks'],
+    completedJobs: 21,
+    rating: 4.9,
+    reviewCount: 21,
+    reviews: [],
+  },
+];
+
 const GENESIS_START_ID = 5;
 const GENESIS_END_ID = 14;
 const GENESIS_FEE_FREE_DAYS = 30;
@@ -38,7 +109,7 @@ const GENESIS_FEE_FREE_DAYS = 30;
 let schemaReady = false;
 
 function getListingSequence(id: string): number | null {
-  const match = /^list_(\\d+)$/.exec(id);
+  const match = /^list_(\d+)$/.exec(id);
   if (!match) return null;
   const value = Number(match[1]);
   return Number.isFinite(value) ? value : null;
@@ -65,6 +136,43 @@ function mapRow(row: any): AgentListing {
   };
 }
 
+async function seedRegistryIfEmpty() {
+  const db = getDbPool();
+  const countResult = await db.query(`select count(*)::int as count from payag_registry`);
+  if ((countResult.rows[0]?.count ?? 0) > 0) return;
+
+  for (const listing of seedListings) {
+    await db.query(
+      `
+      insert into payag_registry (
+        id, agent_name, service, price, currency, worker_address, endpoint, status,
+        created_at, description, capabilities, completed_jobs, rating, review_count, reviews
+      ) values (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15::jsonb
+      )
+      on conflict (id) do nothing
+      `,
+      [
+        listing.id,
+        listing.agentName,
+        listing.service,
+        listing.price,
+        listing.currency,
+        listing.workerAddress,
+        listing.endpoint ?? null,
+        listing.status,
+        listing.createdAt,
+        listing.description ?? null,
+        JSON.stringify(listing.capabilities ?? []),
+        listing.completedJobs,
+        listing.rating,
+        listing.reviewCount,
+        JSON.stringify(listing.reviews ?? []),
+      ]
+    );
+  }
+}
+
 async function ensureRegistrySchema() {
   if (schemaReady) return;
   const db = getDbPool();
@@ -89,7 +197,35 @@ async function ensureRegistrySchema() {
     );
   `);
 
+  await db.query(`
+    create index if not exists idx_payag_registry_created_at
+      on payag_registry (created_at desc);
+  `);
+
+  await db.query(`
+    create index if not exists idx_payag_registry_worker
+      on payag_registry (lower(worker_address));
+  `);
+
+  await db.query(`
+    create index if not exists idx_payag_registry_service
+      on payag_registry (service);
+  `);
+
+  await seedRegistryIfEmpty();
   schemaReady = true;
+}
+
+async function getNextListingId(): Promise<string> {
+  await ensureRegistrySchema();
+  const db = getDbPool();
+  const result = await db.query(`select id from payag_registry`);
+  const maxSequence = result.rows.reduce((max, row) => {
+    const sequence = getListingSequence(row.id);
+    return sequence !== null ? Math.max(max, sequence) : max;
+  }, 0);
+
+  return `list_${maxSequence + 1}`;
 }
 
 export function getGenesisMeta(listing: Pick<AgentListing, 'id' | 'createdAt'>): GenesisMeta {
@@ -136,17 +272,6 @@ export async function getListingById(id: string): Promise<AgentListing | undefin
   const db = getDbPool();
   const result = await db.query(`select * from payag_registry where id = $1 limit 1`, [id]);
   return result.rowCount ? mapRow(result.rows[0]) : undefined;
-}
-
-async function getNextListingId(): Promise<string> {
-  await ensureRegistrySchema();
-  const db = getDbPool();
-  const result = await db.query(`select id from payag_registry`);
-  const maxSequence = result.rows.reduce((max, row) => {
-    const sequence = getListingSequence(row.id);
-    return sequence !== null ? Math.max(max, sequence) : max;
-  }, 0);
-  return `list_${maxSequence + 1}`;
 }
 
 export async function addListing(
@@ -238,7 +363,6 @@ export async function applyListingReview(input: {
   const currentReviewCount = target.reviewCount ?? 0;
   const nextReviewCount = currentReviewCount + 1;
   const nextRating = (currentRating * currentReviewCount + normalizedRating) / nextReviewCount;
-
   const nextReviews = [
     {
       rating: normalizedRating,
