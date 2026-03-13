@@ -4,7 +4,6 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from 'wagmi';
 import { decodeEventLog, parseEther } from 'viem';
-import { generateProofHash } from '@/lib/payagProof';
 
 type EscrowItem = {
   escrowId: string;
@@ -354,6 +353,30 @@ function DashboardContent() {
     [serviceName, taskInput, budgetEth, listingCurrency, workerAddress]
   );
 
+  const buildCreatePayload = async () => {
+    const response = await fetch('/api/create-vault', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service: serviceName.trim(),
+        requirements: taskInput.trim(),
+        budget: budgetEth.trim(),
+        currency: listingCurrency.trim(),
+        worker: workerAddress.trim(),
+      }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload?.proofString || !payload?.taskHash) {
+      throw new Error(payload?.error ?? 'Failed to build vault proof payload');
+    }
+
+    return payload as {
+      proofString: string;
+      taskHash: `0x${string}`;
+    };
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -543,13 +566,13 @@ function DashboardContent() {
     if (!budgetEth.trim() || Number.parseFloat(budgetEth) <= 0) throw new Error('Enter a valid amount');
     if (!/^0x[a-fA-F0-9]{40}$/.test(workerAddress.trim())) throw new Error('Worker address invalid');
 
-    const taskHash = generateProofHash(computedProofPayload);
+    const { proofString, taskHash } = await buildCreatePayload();
 
     const txHash = await writeContractAsync({
       address: FACTORY_ADDRESS,
       abi: FACTORY_ABI,
       functionName: 'createVault',
-      args: [workerAddress.trim() as `0x${string}`, taskHash],
+      args: [workerAddress.trim().toLowerCase() as `0x${string}`, taskHash],
       value: parseEther(budgetEth.trim()),
     });
 
@@ -601,7 +624,7 @@ function DashboardContent() {
         amount: budgetEth.trim(),
         currency: listingCurrency.trim(),
         taskHash,
-        latestProofPayload: computedProofPayload,
+        latestProofPayload: proofString,
       }),
     });
 
@@ -612,7 +635,7 @@ function DashboardContent() {
 
     const createdJob = jobPayload.job as JobItem;
     const vaultKey = latestVault.toLowerCase();
-    writeProofCacheEntry(latestVault, computedProofPayload);
+    writeProofCacheEntry(latestVault, proofString);
     setJobByVault((prev) => ({ ...prev, [vaultKey]: createdJob }));
     setJobStatusByVault((prev) => ({ ...prev, [vaultKey]: createdJob.status }));
     setActivityByVault((prev) => ({
@@ -666,7 +689,10 @@ function DashboardContent() {
       if (demoMode) {
         const latestJob = jobByVault[latestVault.toLowerCase()];
         const proofString =
-          getCachedProof(latestVault) ?? latestJob?.latestProofPayload ?? computedProofPayload;
+          getCachedProof(latestVault) ?? latestJob?.latestProofPayload;
+        if (!proofString) {
+          throw new Error('Original proof payload not found for this vault');
+        }
         await triggerAutomatedVerify(latestVault, proofString, 0);
       } else {
         setToast('Vault created. Run Verify when agent output is ready.');
