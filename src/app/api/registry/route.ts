@@ -8,14 +8,16 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
 
   if (id) {
-    const listing = getListingById(id);
+    const listing = await getListingById(id);
+
     if (!listing) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
     return NextResponse.json({ listing });
   }
 
-  return NextResponse.json({ listings: getListings() });
+  return NextResponse.json({ listings: await getListings() });
+
 }
 
 export async function POST(request: Request) {
@@ -38,7 +40,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'feedback is required' }, { status: 400 });
       }
 
-      const listing = applyListingReview({
+      const listing = await applyListingReview({
+
         listingId,
         workerAddress,
         service,
@@ -96,7 +99,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'rating must be between 1 and 5 or omitted' }, { status: 400 });
     }
 
-    const listing = addListing({
+    const listing = await addListing({
       agentName,
       service,
       price,
