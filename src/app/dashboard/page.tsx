@@ -102,6 +102,37 @@ const VAULT_ABI = [
   },
 ] as const;
 
+const PROOF_CACHE_KEY = 'payag_vault_proof_cache';
+const LAST_VAULT_KEY = 'payag_last_created_vault';
+
+function readProofCache(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PROOF_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeProofCacheEntry(vaultAddress: `0x${string}`, proofString: string) {
+  if (typeof window === 'undefined') return;
+  const cache = readProofCache();
+  cache[vaultAddress.toLowerCase()] = proofString;
+  window.localStorage.setItem(PROOF_CACHE_KEY, JSON.stringify(cache));
+  window.localStorage.setItem(LAST_VAULT_KEY, vaultAddress);
+}
+
+function getCachedProof(vaultAddress: `0x${string}`): string | undefined {
+  return readProofCache()[vaultAddress.toLowerCase()];
+}
+
+function getLastCreatedVault(): `0x${string}` | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const value = window.localStorage.getItem(LAST_VAULT_KEY);
+  return value ? (value as `0x${string}`) : undefined;
+}
+
 function getStageState(index: number, completed: number, inFlight: boolean): 'Pending' | 'Verifying' | 'Released' {
   if (index < completed) return 'Released';
   if (index === completed && inFlight) return 'Verifying';
@@ -535,6 +566,7 @@ function DashboardContent() {
 
     const createdJob = jobPayload.job as JobItem;
     const vaultKey = latestVault.toLowerCase();
+    writeProofCacheEntry(latestVault, computedProofPayload);
     setJobByVault((prev) => ({ ...prev, [vaultKey]: createdJob }));
     setJobStatusByVault((prev) => ({ ...prev, [vaultKey]: createdJob.status }));
     setActivityByVault((prev) => ({
@@ -567,9 +599,9 @@ function DashboardContent() {
       })) as `0x${string}`[];
 
       if (vaults.length === 0) throw new Error('No vault found to verify');
-      const latestVault = vaults[vaults.length - 1];
+      const latestVault = getLastCreatedVault() ?? vaults[vaults.length - 1];
       const latestJob = jobByVault[latestVault.toLowerCase()];
-      const proofString = latestJob?.latestProofPayload;
+      const proofString = getCachedProof(latestVault) ?? latestJob?.latestProofPayload;
 
       if (!proofString) {
         throw new Error('Original proof payload not found for this vault');
@@ -587,7 +619,8 @@ function DashboardContent() {
       const latestVault = await createVaultOnly();
       if (demoMode) {
         const latestJob = jobByVault[latestVault.toLowerCase()];
-        const proofString = latestJob?.latestProofPayload ?? computedProofPayload;
+        const proofString =
+          getCachedProof(latestVault) ?? latestJob?.latestProofPayload ?? computedProofPayload;
         await triggerAutomatedVerify(latestVault, proofString, 0);
       } else {
         setToast('Vault created. Run Verify when agent output is ready.');
