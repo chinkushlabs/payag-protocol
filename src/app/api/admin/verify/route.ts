@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { keccak256, stringToHex } from 'viem';
 import { isAddress, isHex } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import {
@@ -151,6 +152,27 @@ export async function POST(request: Request) {
     const grossPayoutWei = milestone[1];
     const protocolFeeWei = (grossPayoutWei * BigInt(PROTOCOL_FEE_BPS)) / BigInt(BPS_DENOMINATOR);
     const workerPayoutWei = grossPayoutWei - protocolFeeWei;
+    const onchainProofHash = milestone[0];
+    const computedProofHash = keccak256(stringToHex(submission.proofString));
+
+    if (computedProofHash.toLowerCase() !== onchainProofHash.toLowerCase()) {
+      const message = `Proof hash mismatch. On-chain: ${onchainProofHash}; Computed: ${computedProofHash}`;
+      await markSubmissionFailed({ id: submission.id, error: message });
+      await addJobActivity(submission.vaultAddress, {
+        actor: 'ARBITER',
+        message: `Arbiter release blocked: ${message}`,
+      });
+      return NextResponse.json(
+        {
+          error: message,
+          onchainProofHash,
+          computedProofHash,
+          proofString: submission.proofString,
+          milestoneIndex: submission.milestoneIndex,
+        },
+        { status: 409 }
+      );
+    }
 
     try {
       const txHash = await submitProofToChain({
@@ -200,5 +222,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+
 
 
