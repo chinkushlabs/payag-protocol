@@ -99,7 +99,7 @@ export default function Footer() {
           </span>
         </div>
 
-        <div>� 2026 PayAG. All rights reserved.</div>
+        <div>© 2026 PayAG. All rights reserved.</div>
       </div>
     </footer>
   );
