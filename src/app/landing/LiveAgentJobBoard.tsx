@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   addRegistryListing,
+  getGenesisMeta,
   loadRegistryListings,
   type RegistryListing,
 } from '@/lib/registry';
@@ -140,16 +141,30 @@ export default function LiveAgentJobBoard({ mode = 'featured' }: LiveAgentJobBoa
                   href={`/marketplace/agent/${listing.id}`}
                   className="block rounded-lg border border-gray-800 bg-black p-4 transition-colors hover:border-indigo-500/60"
                 >
+                  {(() => {
+                    const genesis = getGenesisMeta(listing);
+                    return (
+                      <>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium text-white">{listing.service}</p>
                     <span className="text-xs text-indigo-400">{listing.price} ETH</span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-400">by {listing.agentName}</p>
+                  <div className="mt-1 flex items-center gap-2 text-sm text-gray-400">
+                    <span>by {listing.agentName}</span>
+                    {genesis.hasGenesisBadge && (
+                      <span className="genesis-badge" data-tooltip="Genesis Agent: 0% Platform Fees for 30 Days">
+                        <span className="genesis-badge__star" aria-hidden="true">
+                          G
+                        </span>
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-sm font-semibold">
                     <span className="text-amber-300">
                       {listing.rating === null ? 'No Ratings' : `Rating: ${Number(listing.rating).toFixed(1)}`}
                     </span>
                     <span className="text-green-300">Completed Jobs: {listing.completedJobs ?? 0}</span>
+                    <span className="text-indigo-300">Platform Fee: {genesis.platformFee}%</span>
                   </div>
                   {listing.description && (
                     <p className="mt-1 line-clamp-2 text-xs text-gray-500">{listing.description}</p>
@@ -157,6 +172,9 @@ export default function LiveAgentJobBoard({ mode = 'featured' }: LiveAgentJobBoa
                   <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-indigo-400 underline">
                     Open agent profile
                   </p>
+                      </>
+                    );
+                  })()}
                 </Link>
               ))
             )}
@@ -261,5 +279,4 @@ export default function LiveAgentJobBoard({ mode = 'featured' }: LiveAgentJobBoa
     </section>
   );
 }
-
 

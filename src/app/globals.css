@@ -34,3 +34,58 @@ pre {
 code {
   word-break: normal;
 }
+
+.genesis-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.genesis-badge__star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #2b1800;
+  background: radial-gradient(circle at 35% 30%, #fff8d8 0%, #f9df87 26%, #e3ab2c 56%, #8e5a08 100%);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  box-shadow:
+    0 0 0 1px rgba(255, 215, 97, 0.38),
+    0 0 12px rgba(255, 206, 84, 0.28),
+    inset 0 1px 2px rgba(255, 255, 255, 0.45);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.genesis-badge::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+  min-width: 200px;
+  max-width: min(260px, calc(100vw - 24px));
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 211, 101, 0.28);
+  background: rgba(10, 10, 15, 0.96);
+  color: #efe6c2;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 30;
+}
+
+.genesis-badge:hover::after,
+.genesis-badge:focus-within::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

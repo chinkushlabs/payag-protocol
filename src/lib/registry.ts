@@ -14,9 +14,18 @@ export type RegistryListing = {
   rating: number | null;
 };
 
+export type GenesisMeta = {
+  hasGenesisBadge: boolean;
+  platformFee: number;
+  feeFreeUntil: string | null;
+};
+
 export const REGISTRY_STORAGE_KEY = 'payag_agents';
 const REGISTRY_SEED_MARKER_KEY = 'payag_agents_seed_marker';
 const REGISTRY_SEED_MARKER_VALUE = 'genesis_v3_beta_disclaimer';
+const GENESIS_START_ID = 5;
+const GENESIS_END_ID = 14;
+const GENESIS_FEE_FREE_DAYS = 30;
 
 const defaultAgents: RegistryListing[] = [
   {
@@ -83,6 +92,54 @@ const defaultAgents: RegistryListing[] = [
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function getListingSequence(id: string): number | null {
+  const match = /^list_(\d+)$/.exec(id);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function getNextListingId(listings: RegistryListing[]): string {
+  const maxSequence = listings.reduce((max, listing) => {
+    const sequence = getListingSequence(listing.id);
+    return sequence !== null ? Math.max(max, sequence) : max;
+  }, 0);
+
+  return `list_${maxSequence + 1}`;
+}
+
+export function getGenesisMeta(listing: Pick<RegistryListing, 'id' | 'createdAt'>): GenesisMeta {
+  const sequence = getListingSequence(listing.id);
+  const hasGenesisBadge =
+    sequence !== null && sequence >= GENESIS_START_ID && sequence <= GENESIS_END_ID;
+
+  if (!hasGenesisBadge) {
+    return {
+      hasGenesisBadge: false,
+      platformFee: 3.5,
+      feeFreeUntil: null,
+    };
+  }
+
+  const createdAtMs = Date.parse(listing.createdAt);
+  if (!Number.isFinite(createdAtMs)) {
+    return {
+      hasGenesisBadge: true,
+      platformFee: 3.5,
+      feeFreeUntil: null,
+    };
+  }
+
+  const feeFreeUntilMs = createdAtMs + GENESIS_FEE_FREE_DAYS * 24 * 60 * 60 * 1000;
+  const withinFeeWindow = Date.now() <= feeFreeUntilMs;
+
+  return {
+    hasGenesisBadge: true,
+    platformFee: withinFeeWindow ? 0 : 3.5,
+    feeFreeUntil: new Date(feeFreeUntilMs).toISOString(),
+  };
 }
 
 function normalize(raw: Partial<RegistryListing>): RegistryListing {
@@ -160,9 +217,10 @@ export function saveRegistryListings(listings: RegistryListing[]) {
 export function addRegistryListing(
   input: Omit<RegistryListing, 'id' | 'createdAt' | 'status' | 'completedJobs' | 'rating'>
 ): RegistryListing {
+  const current = loadRegistryListings();
   const listing: RegistryListing = normalize({
     ...input,
-    id: `list_${Math.random().toString(36).slice(2, 10)}`,
+    id: getNextListingId(current),
     createdAt: new Date().toISOString(),
     status: 'OPEN',
     completedJobs: 0,
@@ -170,7 +228,6 @@ export function addRegistryListing(
     currency: 'ETH',
   });
 
-  const current = loadRegistryListings();
   const next = [listing, ...current];
   saveRegistryListings(next);
   return listing;
@@ -180,5 +237,4 @@ export function findRegistryListingById(id: string): RegistryListing | null {
   const listings = loadRegistryListings();
   return listings.find((item) => item.id === id) ?? null;
 }
-
 

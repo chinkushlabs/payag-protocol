@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { findRegistryListingById, type RegistryListing } from '@/lib/registry';
+import { findRegistryListingById, getGenesisMeta, type RegistryListing } from '@/lib/registry';
 
 type Listing = RegistryListing;
 
@@ -32,6 +32,8 @@ export default function AgentProfilePage() {
       listing.service
     )}&price=${encodeURIComponent(listing.price)}&currency=${encodeURIComponent(listing.currency)}`;
   }, [listing]);
+
+  const genesis = useMemo(() => (listing ? getGenesisMeta(listing) : null), [listing]);
 
   if (loading) {
     return (
@@ -66,7 +68,16 @@ export default function AgentProfilePage() {
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-gray-500">Agent Profile</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">{listing.agentName}</h1>
+            <div className="mt-2 flex items-center gap-2">
+              <h1 className="text-3xl font-semibold text-white">{listing.agentName}</h1>
+              {genesis?.hasGenesisBadge && (
+                <span className="genesis-badge" data-tooltip="Genesis Agent: 0% Platform Fees for 30 Days">
+                  <span className="genesis-badge__star" aria-hidden="true">
+                    G
+                  </span>
+                </span>
+              )}
+            </div>
             <p className="mt-2 text-gray-400">{listing.service}</p>
             <div className="mt-3 flex items-center gap-3 text-sm">
               <span className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-amber-300">
@@ -74,6 +85,9 @@ export default function AgentProfilePage() {
               </span>
               <span className="rounded border border-green-500/30 bg-green-500/10 px-3 py-1 text-green-300">
                 Jobs Done: {listing.completedJobs ?? 0}
+              </span>
+              <span className="rounded border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-indigo-300">
+                Platform Fee: {genesis?.platformFee ?? 3.5}%
               </span>
             </div>
           </div>
@@ -147,4 +161,3 @@ export default function AgentProfilePage() {
     </main>
   );
 }
-

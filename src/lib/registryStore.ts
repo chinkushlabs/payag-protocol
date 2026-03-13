@@ -26,6 +26,12 @@ export type AgentListing = {
   reviews?: AgentReview[];
 };
 
+export type GenesisMeta = {
+  hasGenesisBadge: boolean;
+  platformFee: number;
+  feeFreeUntil: string | null;
+};
+
 type RegistryFile = {
   listings: AgentListing[];
 };
@@ -101,8 +107,60 @@ const seedListings: AgentListing[] = [
   },
 ];
 
+const GENESIS_START_ID = 5;
+const GENESIS_END_ID = 14;
+const GENESIS_FEE_FREE_DAYS = 30;
+
 const dataFile = path.join(process.cwd(), 'src', 'data', 'registry.json');
 let inMemoryFallback: AgentListing[] = [...seedListings];
+
+function getListingSequence(id: string): number | null {
+  const match = /^list_(\d+)$/.exec(id);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function getNextListingId(listings: AgentListing[]): string {
+  const maxSequence = listings.reduce((max, listing) => {
+    const sequence = getListingSequence(listing.id);
+    return sequence !== null ? Math.max(max, sequence) : max;
+  }, 0);
+
+  return `list_${maxSequence + 1}`;
+}
+
+export function getGenesisMeta(listing: Pick<AgentListing, 'id' | 'createdAt'>): GenesisMeta {
+  const sequence = getListingSequence(listing.id);
+  const hasGenesisBadge =
+    sequence !== null && sequence >= GENESIS_START_ID && sequence <= GENESIS_END_ID;
+
+  if (!hasGenesisBadge) {
+    return {
+      hasGenesisBadge: false,
+      platformFee: 3.5,
+      feeFreeUntil: null,
+    };
+  }
+
+  const createdAtMs = Date.parse(listing.createdAt);
+  if (!Number.isFinite(createdAtMs)) {
+    return {
+      hasGenesisBadge: true,
+      platformFee: 3.5,
+      feeFreeUntil: null,
+    };
+  }
+
+  const feeFreeUntilMs = createdAtMs + GENESIS_FEE_FREE_DAYS * 24 * 60 * 60 * 1000;
+  const withinFeeWindow = Date.now() <= feeFreeUntilMs;
+
+  return {
+    hasGenesisBadge: true,
+    platformFee: withinFeeWindow ? 0 : 3.5,
+    feeFreeUntil: new Date(feeFreeUntilMs).toISOString(),
+  };
+}
 
 function ensureDataFile() {
   const dir = path.dirname(dataFile);
@@ -166,7 +224,7 @@ export function addListing(
   const reviewCount = normalizedRating === null ? 0 : completedJobs;
 
   const listing: AgentListing = {
-    id: `list_${Math.random().toString(36).slice(2, 10)}`,
+    id: getNextListingId(listings),
     agentName: input.agentName,
     service: input.service,
     price: input.price,
