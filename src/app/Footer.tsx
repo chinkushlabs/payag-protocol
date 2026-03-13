@@ -1,5 +1,12 @@
 import Link from 'next/link';
 
+const legalLinks = [
+  { href: '/about', label: 'About' },
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/terms', label: 'Terms' },
+  { href: '/contact', label: 'Contact' },
+] as const;
+
 const socialLinks = [
   {
     href: 'https://discord.gg/58SP2jdpyb',
@@ -16,17 +23,24 @@ const socialLinks = [
     ),
   },
   {
-    href: 'https://www.reddit.com/user/dapshots',
+    href: 'https://www.reddit.com/user/chinkush12',
     label: 'Reddit',
     icon: (
       <path d="M20.4 13.5c0-.72-.58-1.3-1.3-1.3-.35 0-.66.14-.9.36-1.4-.97-3.28-1.6-5.38-1.67l.91-4.29 2.98.63a1.95 1.95 0 1 0 .2-.95l-3.34-.71a.49.49 0 0 0-.57.38l-1.02 4.81c-2.17.05-4.12.69-5.56 1.68a1.28 1.28 0 0 0-.87-.34 1.3 1.3 0 0 0-.43 2.52c-.02.15-.03.31-.03.46 0 2.54 2.94 4.61 6.56 4.61s6.56-2.07 6.56-4.61c0-.14-.01-.29-.03-.43a1.3 1.3 0 0 0 .98-1.25ZM8.9 14.8a1.06 1.06 0 1 1 0-2.12 1.06 1.06 0 0 1 0 2.12Zm5.43 2.58c-.73.73-2.13.78-2.58.78-.46 0-1.86-.05-2.59-.78a.36.36 0 0 1 .5-.5c.43.43 1.33.58 2.09.58.75 0 1.65-.15 2.08-.58a.36.36 0 1 1 .5.5Zm-.12-2.58a1.06 1.06 0 1 1 0-2.12 1.06 1.06 0 0 1 0 2.12Z" />
     ),
   },
   {
-    href: 'https://t.me/payagai',
+    href: 'https://t.me/payag_ai',
     label: 'Telegram',
     icon: (
       <path d="M20.67 4.33a1.14 1.14 0 0 0-1.16-.16L4.4 10.2a1.13 1.13 0 0 0 .1 2.13l3.83 1.2 1.48 4.66a1.13 1.13 0 0 0 1.98.35l2.13-2.75 3.63 2.67a1.13 1.13 0 0 0 1.8-.66l2.07-12.33a1.14 1.14 0 0 0-.75-1.14ZM9.27 12.97l7.8-4.92-6.09 6.18-.33 2.54-1.38-3.8Z" />
+    ),
+  },
+  {
+    href: 'https://www.moltbook.com/u/payag_arbiter',
+    label: 'Moltbook',
+    icon: (
+      <path d="M4 5.75C4 4.78 4.78 4 5.75 4h3.3c.46 0 .9.18 1.23.51l1.04 1.03c.33.33.77.51 1.23.51h5.7C19.22 6.05 20 6.83 20 7.8v8.45c0 .97-.78 1.75-1.75 1.75H5.75A1.75 1.75 0 0 1 4 16.25v-10.5Zm2.2 1.55a.45.45 0 0 0-.45.45v7.5c0 .25.2.45.45.45h11.6c.25 0 .45-.2.45-.45v-6.5c0-.25-.2-.45-.45-.45h-5.45a2.8 2.8 0 0 1-1.98-.82l-.86-.85a.7.7 0 0 0-.49-.2H6.2Z" />
     ),
   },
   {
@@ -42,6 +56,18 @@ export default function Footer() {
   return (
     <footer className="border-t border-gray-800 bg-[#0a0a0f] px-4 py-8 text-center text-sm text-gray-500 sm:px-6">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-5">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-xs uppercase tracking-[0.18em] text-gray-400">
+          {legalLinks.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="rounded-full border border-gray-800 bg-[#0d0d14] px-3 py-2 transition hover:border-indigo-500/50 hover:text-white"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+
         <div className="flex flex-wrap items-center justify-center gap-3">
           {socialLinks.map((item) => (
             <Link
