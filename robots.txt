@@ -1,0 +1,14 @@
+# Allow all search engines to crawl the site
+User-agent: *
+Allow: /
+
+# Specifically allow the main pages we want indexed
+Allow: /index.html
+Allow: /marketplace
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+
+# Tell Google where the sitemap is (Update with your actual domain)
+Sitemap: https://www.payag.ai/sitemap.txt
