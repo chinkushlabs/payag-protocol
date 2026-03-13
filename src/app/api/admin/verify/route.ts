@@ -43,8 +43,8 @@ const VAULT_READ_ABI = [
 export async function GET() {
   const submissions = await getPendingSubmissions();
 
-  const pending = submissions.map((submission) => {
-    const job = getJobByVault(submission.vaultAddress);
+  const pending = await Promise.all(submissions.map(async (submission) => {
+    const job = await getJobByVault(submission.vaultAddress);
     return {
       ...submission,
       buyer: job?.buyer ?? null,
@@ -55,7 +55,7 @@ export async function GET() {
       dispute: job?.dispute ?? null,
       buyerTaskHash: submission.buyerTaskHash ?? job?.taskHash ?? null,
     };
-  });
+  }));
 
   return NextResponse.json({ engine: 'db-v3', pending });
 
@@ -111,13 +111,13 @@ export async function POST(request: Request) {
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
         await markSubmissionRefunded({ id: submission.id, refundTxHash: txHash });
-        updateJobStatus(submission.vaultAddress, 'REFUNDED');
-        resolveJobAsRefunded({
+        await updateJobStatus(submission.vaultAddress, 'REFUNDED');
+        await resolveJobAsRefunded({
           vaultAddress: submission.vaultAddress,
           note,
           refundTxHash: txHash,
         });
-        addJobActivity(submission.vaultAddress, {
+        await addJobActivity(submission.vaultAddress, {
           actor: 'ARBITER',
           message: `Arbiter approved dispute and refunded buyer. Tx: ${txHash}`,
         });
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Arbiter refund failed';
         await markSubmissionFailed({ id: submission.id, error: message });
-        addJobActivity(submission.vaultAddress, {
+        await addJobActivity(submission.vaultAddress, {
           actor: 'ARBITER',
           message: `Arbiter refund failed: ${message}`,
         });
@@ -163,12 +163,12 @@ export async function POST(request: Request) {
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
       await markSubmissionReleased({ id: submission.id, txHash });
-      updateJobStatus(submission.vaultAddress, 'SETTLED');
-      resolveJobAsReleased({
+      await updateJobStatus(submission.vaultAddress, 'SETTLED');
+      await resolveJobAsReleased({
         vaultAddress: submission.vaultAddress,
         note: 'Arbiter approved release',
       });
-      addJobActivity(submission.vaultAddress, {
+      await addJobActivity(submission.vaultAddress, {
         actor: 'ARBITER',
         message: `Arbiter approved proof and released payout. Tx: ${txHash}`,
       });
@@ -187,7 +187,7 @@ export async function POST(request: Request) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Arbiter release failed';
       await markSubmissionFailed({ id: submission.id, error: message });
-      addJobActivity(submission.vaultAddress, {
+      await addJobActivity(submission.vaultAddress, {
         actor: 'ARBITER',
         message: `Arbiter release failed: ${message}`,
       });
@@ -200,3 +200,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+

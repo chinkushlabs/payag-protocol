@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'vaultAddress must be a valid EVM address' }, { status: 400 });
     }
 
-    const linkedJob = getJobByVault(vaultAddress);
+    const linkedJob = await getJobByVault(vaultAddress);
 
     const submission = await enqueueOrUpdateSubmission({
       vaultAddress,
@@ -35,9 +35,9 @@ export async function POST(request: Request) {
       buyerTaskHash: linkedJob?.taskHash,
     });
 
-    setJobProofSubmission(vaultAddress, { proofString });
-    updateJobStatus(vaultAddress, 'AWAITING_ARBITER_RELEASE');
-    addJobActivity(vaultAddress, {
+    await setJobProofSubmission(vaultAddress, { proofString });
+    await updateJobStatus(vaultAddress, 'AWAITING_ARBITER_RELEASE');
+    await addJobActivity(vaultAddress, {
       actor: 'WORKER',
       message: 'Agent 2 has submitted completion proof. Awaiting Arbiter verification.',
     });
@@ -52,7 +52,6 @@ export async function POST(request: Request) {
       buyerTaskHash: linkedJob?.taskHash ?? null,
       proofPreview: proofString.slice(0, 180),
     });
-
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Verify route failed' },

@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const worker = searchParams.get('worker') ?? undefined;
 
-  return NextResponse.json({ jobs: getJobs(worker) });
+  return NextResponse.json({ jobs: await getJobs(worker) });
 }
 
 export async function POST(request: Request) {
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const dispute = openJobDispute({
+      const dispute = await openJobDispute({
         vaultAddress,
         buyer,
         reason,
@@ -60,19 +60,10 @@ export async function POST(request: Request) {
         );
       }
 
-      addJobActivity(vaultAddress, {
+      await addJobActivity(vaultAddress, {
         actor: 'BUYER',
         message: `Buyer filed dispute (${DISPUTE_WINDOW_HOURS}h window): ${reason}`,
       });
-
-      if (!submission) {
-        return NextResponse.json(
-          {
-            error: 'No queued proof found for this vault/milestone. Submit proof first.',
-          },
-          { status: 400 }
-        );
-      }
 
       return NextResponse.json({
         status: 'DISPUTED',
@@ -81,18 +72,20 @@ export async function POST(request: Request) {
         milestoneIndex,
         submissionId: submission.id,
       });
-
-
     }
 
     const vaultAddress = String(body?.vaultAddress ?? '').trim() as `0x${string}`;
     const buyer = String(body?.buyer ?? '').trim() as `0x${string}`;
     const workerAddress = String(body?.workerAddress ?? '').trim() as `0x${string}`;
+    const listingId = body?.listingId ? String(body.listingId).trim() : undefined;
     const service = String(body?.service ?? '').trim();
     const requirements = String(body?.requirements ?? '').trim();
     const amount = String(body?.amount ?? '').trim();
     const currency = String(body?.currency ?? 'ETH').trim().toUpperCase();
     const taskHash = String(body?.taskHash ?? '').trim() as `0x${string}`;
+    const latestProofPayload = body?.latestProofPayload
+      ? String(body.latestProofPayload)
+      : undefined;
 
     if (!vaultAddress || !buyer || !workerAddress || !service || !requirements || !amount) {
       return NextResponse.json(
@@ -105,15 +98,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'buyer/workerAddress must be valid EVM addresses' }, { status: 400 });
     }
 
-    const job = addJob({
+    const job = await addJob({
       vaultAddress,
       buyer,
       workerAddress,
+      listingId,
       service,
       requirements,
       amount,
       currency,
       taskHash: /^0x[a-fA-F0-9]{64}$/.test(taskHash) ? taskHash : undefined,
+      latestProofPayload,
     });
 
     return NextResponse.json({ status: 'OPEN', job });

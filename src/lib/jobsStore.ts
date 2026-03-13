@@ -1,3 +1,5 @@
+import { getDbPool } from '@/lib/db';
+
 export type JobActivity = {
   message: string;
   actor: 'SYSTEM' | 'WORKER' | 'ARBITER' | 'BUYER';
@@ -19,6 +21,7 @@ export type JobRequest = {
   vaultAddress: `0x${string}`;
   buyer: `0x${string}`;
   workerAddress: `0x${string}`;
+  listingId?: string;
   service: string;
   requirements: string;
   amount: string;
@@ -39,20 +42,96 @@ export type JobRequest = {
   createdAt: string;
 };
 
-const jobs: JobRequest[] = [];
+let schemaReady = false;
 
-export function addJob(
+function mapRow(row: any): JobRequest {
+  return {
+    id: row.id,
+    vaultAddress: row.vault_address,
+    buyer: row.buyer,
+    workerAddress: row.worker_address,
+    listingId: row.listing_id ?? undefined,
+    service: row.service,
+    requirements: row.requirements,
+    amount: row.amount,
+    currency: row.currency,
+    taskHash: row.task_hash ?? undefined,
+    latestProofPayload: row.latest_proof_payload ?? undefined,
+    proofSubmittedAt: row.proof_submitted_at ? new Date(row.proof_submitted_at).toISOString() : undefined,
+    status: row.status,
+    dispute: row.dispute ?? { status: 'NONE' },
+    activityLog: Array.isArray(row.activity_log) ? row.activity_log : [],
+    createdAt: new Date(row.created_at).toISOString(),
+  };
+}
+
+async function ensureJobsSchema() {
+  if (schemaReady) return;
+  const db = getDbPool();
+
+  await db.query(`
+    create table if not exists payag_jobs (
+      id text primary key,
+      vault_address text not null unique,
+      buyer text not null,
+      worker_address text not null,
+      listing_id text,
+      service text not null,
+      requirements text not null,
+      amount text not null,
+      currency text not null,
+      task_hash text,
+      latest_proof_payload text,
+      proof_submitted_at timestamptz,
+      status text not null check (status in (
+        'OPEN','IN_PROGRESS','AWAITING_ARBITER_RELEASE','DISPUTED','VERIFIED','SETTLED','REFUNDED'
+      )),
+      dispute jsonb not null default '{"status":"NONE"}'::jsonb,
+      activity_log jsonb not null default '[]'::jsonb,
+      created_at timestamptz not null default now()
+    );
+  `);
+
+  await db.query(`
+    alter table payag_jobs
+    add column if not exists listing_id text;
+  `);
+
+  await db.query(`
+    alter table payag_jobs
+    add column if not exists latest_proof_payload text;
+  `);
+
+  await db.query(`
+    alter table payag_jobs
+    add column if not exists proof_submitted_at timestamptz;
+  `);
+
+  await db.query(`
+    create index if not exists idx_payag_jobs_worker on payag_jobs (lower(worker_address), created_at desc);
+  `);
+
+  schemaReady = true;
+}
+
+export async function addJob(
   input: Omit<JobRequest, 'id' | 'createdAt' | 'status' | 'activityLog' | 'dispute'> & {
     status?: JobRequest['status'];
   }
-): JobRequest {
+): Promise<JobRequest> {
+  await ensureJobsSchema();
+  const db = getDbPool();
   const now = new Date().toISOString();
+
+  const existing = await getJobByVault(input.vaultAddress);
+  if (existing) return existing;
 
   const job: JobRequest = {
     id: `job_${Math.random().toString(36).slice(2, 10)}`,
     vaultAddress: input.vaultAddress,
     buyer: input.buyer,
     workerAddress: input.workerAddress,
+    listingId: input.listingId,
     service: input.service,
     requirements: input.requirements,
     amount: input.amount,
@@ -72,51 +151,105 @@ export function addJob(
     createdAt: now,
   };
 
-  jobs.push(job);
-  return job;
+  await db.query(
+    `
+    insert into payag_jobs (
+      id, vault_address, buyer, worker_address, listing_id, service, requirements,
+      amount, currency, task_hash, latest_proof_payload, proof_submitted_at,
+      status, dispute, activity_log, created_at
+    ) values (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16
+    )
+    on conflict (vault_address) do nothing
+    `,
+    [
+      job.id,
+      job.vaultAddress,
+      job.buyer,
+      job.workerAddress,
+      job.listingId ?? null,
+      job.service,
+      job.requirements,
+      job.amount,
+      job.currency,
+      job.taskHash ?? null,
+      job.latestProofPayload ?? null,
+      job.proofSubmittedAt ?? null,
+      job.status,
+      JSON.stringify(job.dispute),
+      JSON.stringify(job.activityLog),
+      job.createdAt,
+    ]
+  );
+
+  return (await getJobByVault(input.vaultAddress)) ?? job;
 }
 
-export function getJobs(workerAddress?: string): JobRequest[] {
+export async function getJobs(workerAddress?: string): Promise<JobRequest[]> {
+  await ensureJobsSchema();
+  const db = getDbPool();
   const normalized = workerAddress?.toLowerCase();
-  const filtered = normalized
-    ? jobs.filter((job) => job.workerAddress.toLowerCase() === normalized)
-    : jobs;
 
-  return [...filtered].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const result = normalized
+    ? await db.query(
+        `select * from payag_jobs where lower(worker_address) = $1 order by created_at desc`,
+        [normalized]
+      )
+    : await db.query(`select * from payag_jobs order by created_at desc`);
+
+  return result.rows.map(mapRow);
 }
 
-export function getJobByVault(vaultAddress: `0x${string}`): JobRequest | undefined {
-  return jobs.find((job) => job.vaultAddress.toLowerCase() === vaultAddress.toLowerCase());
+export async function getJobByVault(vaultAddress: `0x${string}`): Promise<JobRequest | undefined> {
+  await ensureJobsSchema();
+  const db = getDbPool();
+  const result = await db.query(
+    `select * from payag_jobs where lower(vault_address) = lower($1) limit 1`,
+    [vaultAddress]
+  );
+  return result.rowCount ? mapRow(result.rows[0]) : undefined;
 }
 
-export function updateJobStatus(
+export async function updateJobStatus(
   vaultAddress: `0x${string}`,
   status: JobRequest['status']
-): JobRequest | undefined {
-  const job = getJobByVault(vaultAddress);
-  if (!job) return undefined;
-  job.status = status;
-  return job;
+): Promise<JobRequest | undefined> {
+  await ensureJobsSchema();
+  const db = getDbPool();
+  const result = await db.query(
+    `update payag_jobs set status = $2 where lower(vault_address) = lower($1) returning *`,
+    [vaultAddress, status]
+  );
+  return result.rowCount ? mapRow(result.rows[0]) : undefined;
 }
 
-export function setJobProofSubmission(
+export async function setJobProofSubmission(
   vaultAddress: `0x${string}`,
   payload: { proofString: string }
-): JobRequest | undefined {
-  const job = getJobByVault(vaultAddress);
-  if (!job) return undefined;
-  job.latestProofPayload = payload.proofString;
-  job.proofSubmittedAt = new Date().toISOString();
-  return job;
+): Promise<JobRequest | undefined> {
+  await ensureJobsSchema();
+  const db = getDbPool();
+  const now = new Date().toISOString();
+  const result = await db.query(
+    `
+    update payag_jobs
+    set latest_proof_payload = $2,
+        proof_submitted_at = $3
+    where lower(vault_address) = lower($1)
+    returning *
+    `,
+    [vaultAddress, payload.proofString, now]
+  );
+  return result.rowCount ? mapRow(result.rows[0]) : undefined;
 }
 
-export function openJobDispute(input: {
+export async function openJobDispute(input: {
   vaultAddress: `0x${string}`;
   buyer: `0x${string}`;
   reason: string;
   maxHours?: number;
-}): { ok: true; job: JobRequest } | { ok: false; error: string } {
-  const job = getJobByVault(input.vaultAddress);
+}): Promise<{ ok: true; job: JobRequest } | { ok: false; error: string }> {
+  const job = await getJobByVault(input.vaultAddress);
   if (!job) return { ok: false, error: 'Job not found' };
 
   if (job.buyer.toLowerCase() !== input.buyer.toLowerCase()) {
@@ -134,27 +267,36 @@ export function openJobDispute(input: {
     return { ok: false, error: `Dispute window closed (${maxHours}h)` };
   }
 
-  job.status = 'DISPUTED';
-  job.dispute = {
+  const dispute: JobDispute = {
     status: 'OPEN',
     reason: input.reason,
     openedAt: new Date().toISOString(),
     openedBy: input.buyer,
   };
 
-  return { ok: true, job };
+  const db = getDbPool();
+  const result = await db.query(
+    `
+    update payag_jobs
+    set status = 'DISPUTED', dispute = $2::jsonb
+    where lower(vault_address) = lower($1)
+    returning *
+    `,
+    [input.vaultAddress, JSON.stringify(dispute)]
+  );
+
+  return result.rowCount ? { ok: true, job: mapRow(result.rows[0]) } : { ok: false, error: 'Job not found' };
 }
 
-export function resolveJobAsRefunded(input: {
+export async function resolveJobAsRefunded(input: {
   vaultAddress: `0x${string}`;
   note?: string;
   refundTxHash?: `0x${string}`;
-}): JobRequest | undefined {
-  const job = getJobByVault(input.vaultAddress);
+}): Promise<JobRequest | undefined> {
+  const job = await getJobByVault(input.vaultAddress);
   if (!job) return undefined;
 
-  job.status = 'REFUNDED';
-  job.dispute = {
+  const dispute: JobDispute = {
     ...job.dispute,
     status: 'RESOLVED_REFUND',
     resolvedAt: new Date().toISOString(),
@@ -162,38 +304,71 @@ export function resolveJobAsRefunded(input: {
     refundTxHash: input.refundTxHash,
   };
 
-  return job;
+  const db = getDbPool();
+  const result = await db.query(
+    `
+    update payag_jobs
+    set status = 'REFUNDED', dispute = $2::jsonb
+    where lower(vault_address) = lower($1)
+    returning *
+    `,
+    [input.vaultAddress, JSON.stringify(dispute)]
+  );
+  return result.rowCount ? mapRow(result.rows[0]) : undefined;
 }
 
-export function resolveJobAsReleased(input: {
+export async function resolveJobAsReleased(input: {
   vaultAddress: `0x${string}`;
   note?: string;
-}): JobRequest | undefined {
-  const job = getJobByVault(input.vaultAddress);
+}): Promise<JobRequest | undefined> {
+  const job = await getJobByVault(input.vaultAddress);
   if (!job) return undefined;
 
-  job.dispute = {
+  const dispute: JobDispute = {
     ...job.dispute,
     status: 'RESOLVED_RELEASE',
     resolvedAt: new Date().toISOString(),
     resolutionNote: input.note,
   };
 
-  return job;
+  const db = getDbPool();
+  const result = await db.query(
+    `
+    update payag_jobs
+    set status = 'SETTLED', dispute = $2::jsonb
+    where lower(vault_address) = lower($1)
+    returning *
+    `,
+    [input.vaultAddress, JSON.stringify(dispute)]
+  );
+  return result.rowCount ? mapRow(result.rows[0]) : undefined;
 }
 
-export function addJobActivity(
+export async function addJobActivity(
   vaultAddress: `0x${string}`,
   activity: { message: string; actor: JobActivity['actor'] }
-): JobRequest | undefined {
-  const job = getJobByVault(vaultAddress);
+): Promise<JobRequest | undefined> {
+  const job = await getJobByVault(vaultAddress);
   if (!job) return undefined;
 
-  job.activityLog.unshift({
-    message: activity.message,
-    actor: activity.actor,
-    createdAt: new Date().toISOString(),
-  });
+  const activityLog = [
+    {
+      message: activity.message,
+      actor: activity.actor,
+      createdAt: new Date().toISOString(),
+    },
+    ...(job.activityLog ?? []),
+  ];
 
-  return job;
+  const db = getDbPool();
+  const result = await db.query(
+    `
+    update payag_jobs
+    set activity_log = $2::jsonb
+    where lower(vault_address) = lower($1)
+    returning *
+    `,
+    [vaultAddress, JSON.stringify(activityLog)]
+  );
+  return result.rowCount ? mapRow(result.rows[0]) : undefined;
 }

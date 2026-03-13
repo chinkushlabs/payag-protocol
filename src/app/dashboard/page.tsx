@@ -129,6 +129,7 @@ function DashboardContent() {
 
   const [jobStatusByVault, setJobStatusByVault] = useState<Record<string, JobItem['status']>>({});
   const [activityByVault, setActivityByVault] = useState<Record<string, JobActivity[]>>({});
+  const [jobByVault, setJobByVault] = useState<Record<string, JobItem>>({});
 
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
@@ -235,19 +236,47 @@ function DashboardContent() {
 
         const statusMap: Record<string, JobItem['status']> = {};
         const activityMap: Record<string, JobActivity[]> = {};
+        const jobsMap: Record<string, JobItem> = {};
 
         rows.forEach((job) => {
           const key = job.vaultAddress.toLowerCase();
           statusMap[key] = job.status;
           activityMap[key] = Array.isArray(job.activityLog) ? job.activityLog : [];
+          jobsMap[key] = job;
         });
 
-        setJobStatusByVault(statusMap);
-        setActivityByVault(activityMap);
+        setJobStatusByVault((prev) => {
+          const next = { ...prev, ...statusMap };
+
+          Object.entries(prev).forEach(([key, value]) => {
+            const missingFromPoll = !(key in statusMap);
+            const shouldPreserve =
+              value === 'AWAITING_ARBITER_RELEASE' || value === 'DISPUTED';
+
+            if (missingFromPoll && shouldPreserve) {
+              next[key] = value;
+            }
+          });
+
+          return next;
+        });
+
+        setActivityByVault((prev) => {
+          const next = { ...prev, ...activityMap };
+
+          Object.entries(prev).forEach(([key, value]) => {
+            const missingFromPoll = !(key in activityMap);
+            if (missingFromPoll && Array.isArray(value) && value.length > 0) {
+              next[key] = value;
+            }
+          });
+
+          return next;
+        });
+
+        setJobByVault((prev) => ({ ...prev, ...jobsMap }));
       } catch {
         if (!mounted) return;
-        setJobStatusByVault({});
-        setActivityByVault({});
       }
     };
 
@@ -495,6 +524,7 @@ function DashboardContent() {
         amount: budgetEth.trim(),
         currency: listingCurrency.trim(),
         taskHash,
+        latestProofPayload: computedProofPayload,
       }),
     });
 
@@ -738,6 +768,10 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
+
+
+
+
 
 
 
