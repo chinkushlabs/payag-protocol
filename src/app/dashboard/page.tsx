@@ -155,6 +155,23 @@ function getLastCreatedVault(): `0x${string}` | undefined {
   return value ? (value as `0x${string}`) : undefined;
 }
 
+async function isReadableVaultAddress(
+  publicClient: NonNullable<ReturnType<typeof usePublicClient>>,
+  vaultAddress: `0x${string}`
+) {
+  try {
+    await publicClient.readContract({
+      address: vaultAddress,
+      abi: VAULT_ABI,
+      functionName: 'getMilestone',
+      args: [BigInt(0)],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getStageState(index: number, completed: number, inFlight: boolean): 'Pending' | 'Verifying' | 'Released' {
   if (index < completed) return 'Released';
   if (index === completed && inFlight) return 'Verifying';
@@ -567,6 +584,11 @@ function DashboardContent() {
     if (!/^0x[a-fA-F0-9]{40}$/.test(workerAddress.trim())) throw new Error('Worker address invalid');
 
     const { proofString, taskHash } = await buildCreatePayload();
+    const vaultsBefore = ((await publicClient.readContract({
+      address: FACTORY_ADDRESS,
+      abi: FACTORY_ABI,
+      functionName: 'getVaults',
+    })) as `0x${string}`[]).map((vault) => vault.toLowerCase());
 
     const txHash = await writeContractAsync({
       address: FACTORY_ADDRESS,
@@ -577,26 +599,50 @@ function DashboardContent() {
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    const vaultsAfter = (await publicClient.readContract({
+      address: FACTORY_ADDRESS,
+      abi: FACTORY_ABI,
+      functionName: 'getVaults',
+    })) as `0x${string}`[];
+
+    const addedVaults = vaultsAfter.filter(
+      (vault) => !vaultsBefore.includes(vault.toLowerCase())
+    );
 
     const vaultCreatedLog = receipt.logs.find(
       (log) => log.address.toLowerCase() === FACTORY_ADDRESS.toLowerCase()
     );
 
-    if (!vaultCreatedLog) {
-      throw new Error('VaultCreated event not found in transaction receipt');
+    let eventVault: `0x${string}` | null = null;
+    if (vaultCreatedLog) {
+      const decoded = decodeEventLog({
+        abi: FACTORY_ABI,
+        data: vaultCreatedLog.data,
+        topics: vaultCreatedLog.topics,
+      });
+
+      if (decoded.eventName === 'VaultCreated') {
+        eventVault = decoded.args.vaultAddress as `0x${string}`;
+      }
     }
 
-    const decoded = decodeEventLog({
-      abi: FACTORY_ABI,
-      data: vaultCreatedLog.data,
-      topics: vaultCreatedLog.topics,
-    });
+    let latestVault: `0x${string}` | null = null;
 
-    if (decoded.eventName !== 'VaultCreated') {
-      throw new Error('Unexpected event while creating vault');
+    for (const candidate of addedVaults) {
+      if (await isReadableVaultAddress(publicClient, candidate)) {
+        latestVault = candidate;
+        break;
+      }
     }
 
-    const latestVault = decoded.args.vaultAddress as `0x${string}`;
+    if (!latestVault && eventVault && (await isReadableVaultAddress(publicClient, eventVault))) {
+      latestVault = eventVault;
+    }
+
+    if (!latestVault) {
+      throw new Error('Unable to identify the newly created vault contract from this transaction');
+    }
+
     setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
 
     const milestone = (await publicClient.readContract({
