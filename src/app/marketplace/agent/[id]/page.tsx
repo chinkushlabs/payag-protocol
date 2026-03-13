@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { findRegistryListingById, getGenesisMeta, type RegistryListing } from '@/lib/registry';
+import { getGenesisMeta, type RegistryListing } from '@/lib/registry';
 
 type Listing = RegistryListing;
 
@@ -20,10 +20,35 @@ export default function AgentProfilePage() {
       return;
     }
 
-    setLoading(true);
-    const found = findRegistryListingById(id);
-    setListing(found);
-    setLoading(false);
+    let mounted = true;
+
+    const loadListing = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/registry?id=${encodeURIComponent(id)}`, {
+          cache: 'no-store',
+        });
+        const payload = await response.json();
+
+        if (!mounted) return;
+
+        if (!response.ok || !payload?.listing) {
+          setListing(null);
+        } else {
+          setListing(payload.listing as Listing);
+        }
+      } catch {
+        if (mounted) setListing(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadListing();
+
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
   const hireHref = useMemo(() => {

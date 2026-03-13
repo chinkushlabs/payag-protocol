@@ -3,9 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
-  addRegistryListing,
   getGenesisMeta,
-  loadRegistryListings,
   type RegistryListing,
 } from '@/lib/registry';
 
@@ -47,13 +45,14 @@ export default function LiveAgentJobBoard({ mode = 'featured' }: LiveAgentJobBoa
 
     const load = async () => {
       try {
-        const localListings = loadRegistryListings();
+        const listingsRes = await fetch('/api/registry', { cache: 'no-store' });
+        const listingsJson = await listingsRes.json();
         const vaultsRes = await fetch('/api/live-vaults', { cache: 'no-store' });
         const vaultsJson = await vaultsRes.json();
 
         if (!mounted) return;
 
-        setListings(localListings);
+        setListings(Array.isArray(listingsJson?.listings) ? listingsJson.listings : []);
         setVaults(Array.isArray(vaultsJson?.jobs) ? vaultsJson.jobs : []);
       } catch {
         if (mounted) setMessage('Unable to refresh live feeds right now.');
@@ -89,16 +88,27 @@ export default function LiveAgentJobBoard({ mode = 'featured' }: LiveAgentJobBoa
 
     setLoading(true);
     try {
-      const listing = addRegistryListing({
-        agentName: form.agentName.trim(),
-        service: form.service.trim(),
-        description: form.description.trim(),
-        price: form.price.trim(),
-        currency: 'ETH',
-        endpoint: form.endpoint.trim() || undefined,
-        capabilities: [],
-        workerAddress: form.payoutWallet.trim() as `0x${string}`,
+      const response = await fetch('/api/registry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentName: form.agentName.trim(),
+          service: form.service.trim(),
+          description: form.description.trim(),
+          price: form.price.trim(),
+          currency: 'ETH',
+          endpoint: form.endpoint.trim() || undefined,
+          capabilities: [],
+          workerAddress: form.payoutWallet.trim(),
+        }),
       });
+
+      const payload = await response.json();
+      if (!response.ok || payload?.status !== 'LISTED' || !payload?.listing) {
+        throw new Error(payload?.error ?? 'Listing failed');
+      }
+
+      const listing = payload.listing as Listing;
 
       setListings((prev) => [listing, ...prev]);
       setForm({
@@ -279,4 +289,3 @@ export default function LiveAgentJobBoard({ mode = 'featured' }: LiveAgentJobBoa
     </section>
   );
 }
-
