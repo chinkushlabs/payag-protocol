@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from 'wagmi';
-import { parseEther } from 'viem';
+import { decodeEventLog, parseEther } from 'viem';
 import { generateProofHash } from '@/lib/payagProof';
 
 type EscrowItem = {
@@ -58,6 +58,18 @@ const FACTORY_ABI = [
     outputs: [{ internalType: 'address[]', name: '', type: 'address[]' }],
     stateMutability: 'view',
     type: 'function',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'vaultAddress', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'seller', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'totalAmount', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'milestonesTotal', type: 'uint256' },
+    ],
+    name: 'VaultCreated',
+    type: 'event',
   },
   {
     inputs: [
@@ -541,17 +553,27 @@ function DashboardContent() {
       value: parseEther(budgetEth.trim()),
     });
 
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-    const vaults = (await publicClient.readContract({
-      address: FACTORY_ADDRESS,
+    const vaultCreatedLog = receipt.logs.find(
+      (log) => log.address.toLowerCase() === FACTORY_ADDRESS.toLowerCase()
+    );
+
+    if (!vaultCreatedLog) {
+      throw new Error('VaultCreated event not found in transaction receipt');
+    }
+
+    const decoded = decodeEventLog({
       abi: FACTORY_ABI,
-      functionName: 'getVaults',
-    })) as `0x${string}`[];
+      data: vaultCreatedLog.data,
+      topics: vaultCreatedLog.topics,
+    });
 
-    if (vaults.length === 0) throw new Error('No vaults found after creation');
+    if (decoded.eventName !== 'VaultCreated') {
+      throw new Error('Unexpected event while creating vault');
+    }
 
-    const latestVault = vaults[vaults.length - 1];
+    const latestVault = decoded.args.vaultAddress as `0x${string}`;
     setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
 
     const milestone = (await publicClient.readContract({
@@ -559,7 +581,6 @@ function DashboardContent() {
       abi: VAULT_ABI,
       functionName: 'getMilestone',
       args: [BigInt(0)],
-
     })) as readonly [`0x${string}`, bigint, boolean];
 
     if (milestone[0].toLowerCase() !== taskHash.toLowerCase()) {
