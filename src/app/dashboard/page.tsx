@@ -512,7 +512,7 @@ function DashboardContent() {
     const latestVault = vaults[vaults.length - 1];
     setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
 
-    await fetch('/api/jobs', {
+    const jobResponse = await fetch('/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -527,6 +527,20 @@ function DashboardContent() {
         latestProofPayload: computedProofPayload,
       }),
     });
+
+    const jobPayload = await jobResponse.json();
+    if (!jobResponse.ok || jobPayload?.status !== 'OPEN' || !jobPayload?.job?.latestProofPayload) {
+      throw new Error(jobPayload?.error ?? 'Failed to persist original proof payload for this vault');
+    }
+
+    const createdJob = jobPayload.job as JobItem;
+    const vaultKey = latestVault.toLowerCase();
+    setJobByVault((prev) => ({ ...prev, [vaultKey]: createdJob }));
+    setJobStatusByVault((prev) => ({ ...prev, [vaultKey]: createdJob.status }));
+    setActivityByVault((prev) => ({
+      ...prev,
+      [vaultKey]: Array.isArray(createdJob.activityLog) ? createdJob.activityLog : [],
+    }));
 
     await refetch();
     return latestVault;
@@ -554,7 +568,14 @@ function DashboardContent() {
 
       if (vaults.length === 0) throw new Error('No vault found to verify');
       const latestVault = vaults[vaults.length - 1];
-      await triggerAutomatedVerify(latestVault, computedProofPayload, 0);
+      const latestJob = jobByVault[latestVault.toLowerCase()];
+      const proofString = latestJob?.latestProofPayload;
+
+      if (!proofString) {
+        throw new Error('Original proof payload not found for this vault');
+      }
+
+      await triggerAutomatedVerify(latestVault, proofString, 0);
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'Verify failed');
       setTimeout(() => setToast(null), 3000);
@@ -565,7 +586,9 @@ function DashboardContent() {
     try {
       const latestVault = await createVaultOnly();
       if (demoMode) {
-        await triggerAutomatedVerify(latestVault, computedProofPayload, 0);
+        const latestJob = jobByVault[latestVault.toLowerCase()];
+        const proofString = latestJob?.latestProofPayload ?? computedProofPayload;
+        await triggerAutomatedVerify(latestVault, proofString, 0);
       } else {
         setToast('Vault created. Run Verify when agent output is ready.');
         setTimeout(() => setToast(null), 3000);
