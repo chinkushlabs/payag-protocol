@@ -100,6 +100,17 @@ const VAULT_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [{ internalType: 'uint256', name: 'milestoneIndex', type: 'uint256' }],
+    name: 'getMilestone',
+    outputs: [
+      { internalType: 'bytes32', name: 'proofHash', type: 'bytes32' },
+      { internalType: 'uint256', name: 'payoutAmount', type: 'uint256' },
+      { internalType: 'bool', name: 'released', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
 const PROOF_CACHE_KEY = 'payag_vault_proof_cache';
@@ -542,6 +553,19 @@ function DashboardContent() {
 
     const latestVault = vaults[vaults.length - 1];
     setCreateTxByVault((prev) => ({ ...prev, [latestVault.toLowerCase()]: txHash }));
+
+    const milestone = (await publicClient.readContract({
+      address: latestVault,
+      abi: VAULT_ABI,
+      functionName: 'getMilestone',
+      args: [0n],
+    })) as readonly [`0x${string}`, bigint, boolean];
+
+    if (milestone[0].toLowerCase() !== taskHash.toLowerCase()) {
+      throw new Error(
+        `Vault created with mismatched proof hash. On-chain: ${milestone[0]}; Expected: ${taskHash}. Refund or recreate.`
+      );
+    }
 
     const jobResponse = await fetch('/api/jobs', {
       method: 'POST',
