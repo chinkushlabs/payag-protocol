@@ -266,3 +266,57 @@ export async function disputeTask(input: {
 
   return getTaskById(input.taskId);
 }
+
+export async function markTaskReleased(input: {
+  taskId: string;
+  releasedTxHash: `0x${string}`;
+}): Promise<PayagTask | undefined> {
+  const db = getDbPool();
+
+  await db.query(
+    `
+    update payag_tasks
+    set status = 'RELEASED',
+        released_tx_hash = $2,
+        released_at = now()
+    where id = $1
+    `,
+    [input.taskId, input.releasedTxHash]
+  );
+
+  await addTaskActivity({
+    taskId: input.taskId,
+    actor: 'ARBITER',
+    message: `Payment released on-chain. Tx: ${input.releasedTxHash}`,
+  });
+
+  return getTaskById(input.taskId);
+}
+
+export async function markTaskRefunded(input: {
+  taskId: string;
+  refundTxHash: `0x${string}`;
+  reason?: string;
+}): Promise<PayagTask | undefined> {
+  const db = getDbPool();
+
+  await db.query(
+    `
+    update payag_tasks
+    set status = 'REFUNDED',
+        refund_tx_hash = $2,
+        refunded_at = now(),
+        dispute_reason = coalesce($3, dispute_reason)
+    where id = $1
+    `,
+    [input.taskId, input.refundTxHash, input.reason ?? null]
+  );
+
+  await addTaskActivity({
+    taskId: input.taskId,
+    actor: 'ARBITER',
+    message: `Buyer refunded on-chain. Tx: ${input.refundTxHash}${input.reason ? ` | Reason: ${input.reason}` : ''}`,
+  });
+
+  return getTaskById(input.taskId);
+}
